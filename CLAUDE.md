@@ -44,10 +44,43 @@ Required in `.env` (loaded by dotenv):
 
 | Outil    | Description                                                        |
 |----------|--------------------------------------------------------------------|
-| `search` | Recherche d'articles avec filtres (langs, dates, country, slug, product, size, sortOrder, offset, includeAgendas) |
+| `search` | Outil principal de recherche d'articles (filtres + presets + mode fullText) |
 | `get`    | Récupération d'un article complet par UNO (texte non tronqué)      |
 | `mlt`    | Articles similaires (More Like This) à partir d'un UNO             |
-| `list`   | Liste des valeurs d'une facette (slug, genre, country) avec fréquence |
+| `list`   | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
+
+### Presets
+
+#### `search.preset`
+
+Presets disponibles:
+- `a-la-une`
+- `agenda`
+- `previsions`
+- `major-stories`
+
+Comportement:
+- Chaque preset applique automatiquement un jeu de filtres `search` adapté.
+- Le preset peut être affiné via les autres paramètres (`lang`, `size`, etc.), selon les champs déjà fixés par le preset.
+
+#### `list.preset`
+
+Preset disponible:
+- `trending-topics` (équivalent de la logique “topics tendance”)
+
+Comportement:
+- Si `preset=trending-topics`, `facet` est ignoré et remplacé en interne par `slug`.
+- Sans preset, `facet` est requis.
+
+### Paramètre `fullText` (tool `search`)
+
+- Type: `boolean`
+- Défaut global: `false`
+- Overridé par certains presets
+
+Règles:
+- `fullText=false` -> extrait (premiers paragraphes)
+- `fullText=true` -> texte complet de la dépêche
 
 ## MCP Resources
 

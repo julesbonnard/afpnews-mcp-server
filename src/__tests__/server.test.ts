@@ -5,7 +5,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { registerTools } from '../tools.js';
 import { registerResources } from '../resources.js';
 import { registerPrompts } from '../prompts.js';
-import { makeDocs } from './fixtures.js';
+import { FIXTURE_DOC, makeDocs } from './fixtures.js';
 
 function createMockApicore() {
   return {
@@ -61,6 +61,35 @@ describe('MCP integration', () => {
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toBe('No results found.');
     });
+
+    it('returns excerpt by default (no fullText)', async () => {
+      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      const result = await client.callTool({ name: 'search', arguments: { query: 'test' } });
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('Fourth paragraph wraps up.');
+      expect(msg.text).not.toContain('Fifth paragraph is extra content.');
+    });
+
+    it('returns full text when fullText=true', async () => {
+      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      const result = await client.callTool({ name: 'search', arguments: { query: 'test', fullText: true } });
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('Fifth paragraph is extra content.');
+    });
+
+    it('preset a-la-une applies filters and defaults to full text', async () => {
+      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      const result = await client.callTool({ name: 'search', arguments: { preset: 'a-la-une' } });
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('Fifth paragraph is extra content.');
+
+      const [request] = apicore.search.mock.calls.at(-1)!;
+      expect(request.product).toEqual(['news']);
+      expect(request.lang).toEqual(['fr']);
+      expect(request.slug).toEqual(['afp', 'actualites']);
+      expect(request.dateFrom).toBe('now-1d');
+      expect(request.size).toBe(1);
+    });
   });
 
   describe('get tool', () => {
@@ -97,43 +126,23 @@ describe('MCP integration', () => {
       const parsed = JSON.parse(msg.text);
       expect(parsed[0].key).toBe('economy');
     });
-  });
 
-  describe('shortcut tools', () => {
-    it('a-la-une returns formatted markdown', async () => {
-      const result = await client.callTool({ name: 'a-la-une', arguments: {} });
-      expect(result.content).toHaveLength(3);
-      const first = result.content![0] as { type: string; text: string };
-      expect(first.text).toContain('##');
+    it('returns a validation message when facet is missing without preset', async () => {
+      const result = await client.callTool({ name: 'list', arguments: {} });
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toBe('Missing required parameter: facet (or provide preset: trending-topics).');
     });
 
-    it('agenda returns formatted markdown', async () => {
-      const result = await client.callTool({ name: 'agenda', arguments: {} });
-      expect(result.content).toHaveLength(3);
-    });
-
-    it('previsions returns formatted markdown', async () => {
-      const result = await client.callTool({ name: 'previsions', arguments: {} });
-      expect(result.content).toHaveLength(3);
-    });
-
-    it('major-stories returns formatted markdown', async () => {
-      const result = await client.callTool({ name: 'major-stories', arguments: {} });
-      expect(result.content).toHaveLength(3);
-    });
-
-    it('topic-summary returns formatted markdown', async () => {
-      const result = await client.callTool({ name: 'topic-summary', arguments: { topic: 'ONLINE-NEWS-FR_LA-UNE' } });
-      expect(result.content).toHaveLength(3);
-    });
-  });
-
-  describe('trending-topics tool', () => {
-    it('returns JSON', async () => {
-      const result = await client.callTool({ name: 'trending-topics', arguments: {} });
+    it('preset trending-topics applies list overrides', async () => {
+      const result = await client.callTool({ name: 'list', arguments: { preset: 'trending-topics' } });
       const msg = result.content![0] as { type: string; text: string };
       const parsed = JSON.parse(msg.text);
       expect(parsed[0].key).toBe('economy');
+
+      const [facet, params, limit] = apicore.list.mock.calls.at(-1)!;
+      expect(facet).toBe('slug');
+      expect(params).toMatchObject({ langs: ['fr'], product: ['news'], dateFrom: 'now-1d' });
+      expect(limit).toBe(20);
     });
   });
 
