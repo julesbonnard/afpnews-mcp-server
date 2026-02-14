@@ -12,8 +12,8 @@ importers:
         specifier: ^1.26.0
         version: 1.26.0(zod@4.3.6)
       afpnews-api:
-        specifier: ^2.3.0
-        version: 2.3.0
+        specifier: ^2.4.0
+        version: 2.4.0
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -65,8 +65,8 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
-  afpnews-api@2.3.0:
-    resolution: {integrity: sha512-SrnMPNtZyqvJPdK3cFJOtI4e6VYocx7daUwMTfJElY3YfeB9aRsMZFTUieShY6IigadADZc2HQ+gqwT7vsikSg==}
+  afpnews-api@2.4.0:
+    resolution: {integrity: sha512-VErqy0P5h2sjVjaSoIHF1uFsKx16PYKZUFBCCUmHsPdPM99lQhk0ClibPU7Wk9i34BtUiqLcQxrmTdCOj9ikpA==}
     engines: {node: '>= 12.20.0'}
 
   ajv-formats@3.0.1:
@@ -536,7 +536,7 @@ snapshots:
       mime-types: 3.0.1
       negotiator: 1.0.0
 
-  afpnews-api@2.3.0:
+  afpnews-api@2.4.0:
     dependencies:
       '@types/btoa-lite': 1.0.2
       '@types/moo': 0.5.10

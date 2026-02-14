@@ -34,7 +34,7 @@ Required in `.env` (loaded by dotenv):
 - **Package manager**: pnpm (v10.29.3)
 - **Module system**: ESM (`"type": "module"`)
 - **TypeScript target**: ES2022, Node16 module resolution, strict mode
-- **Build output**: `build/` directory (note: `package.json` main says `dist/` but actual output is `build/`)
+- **Build output**: `build/` directory
 - **No tests or linter configured**
 - Document types from `afpnews-api` are untyped — the code uses `(doc as any)` casts
 
