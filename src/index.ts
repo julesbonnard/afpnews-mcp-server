@@ -59,7 +59,7 @@ async function startHttpServer() {
       sessionIdGenerator: () => crypto.randomUUID(),
     });
 
-    const server = createServer(apiKey, credentials.username, credentials.password);
+    const server = await createServer(apiKey, credentials.username, credentials.password);
     await server.connect(transport);
 
     transport.onclose = () => {
@@ -90,7 +90,7 @@ async function startStdioServer() {
   const username = process.env.APICORE_USERNAME || '';
   const password = process.env.APICORE_PASSWORD || '';
 
-  const server = createServer(apiKey, username, password);
+  const server = await createServer(apiKey, username, password);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Serveur MCP démarré");

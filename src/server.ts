@@ -4,20 +4,16 @@ import { registerTools } from './tools.js';
 import { registerResources } from './resources.js';
 import { registerPrompts } from './prompts.js';
 
-export function createServer(apiKey: string, username: string, password: string): McpServer {
+export async function createServer(apiKey: string, username: string, password: string): Promise<McpServer> {
   const apicore = new ApiCore({ apiKey });
-
-  async function authenticate() {
-    if (apicore.isTokenValid) return;
-    await apicore.authenticate({ username, password });
-  }
+  await apicore.authenticate({ username, password });
 
   const server = new McpServer({
     name: 'afpnews',
     version: '1.0.0',
   });
 
-  const ctx = { server, apicore, authenticate };
+  const ctx = { server, apicore };
 
   registerTools(ctx);
   registerResources(ctx);
