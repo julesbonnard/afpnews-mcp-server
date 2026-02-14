@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc && chmod 755 build/index.js",
-    "start": "node build/index.js"
+    "start": "node build/index.js",
+    "test": "vitest run"
   },
   "bin": {
     "search": "./build/index.js"
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^25.2.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }

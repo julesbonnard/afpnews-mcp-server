@@ -4,6 +4,11 @@ import { registerTools } from './tools.js';
 import { registerResources } from './resources.js';
 import { registerPrompts } from './prompts.js';
 
+export interface ServerContext {
+  server: McpServer;
+  apicore: ApiCore;
+}
+
 export async function createServer(apiKey: string, username: string, password: string): Promise<McpServer> {
   const apicore = new ApiCore({ apiKey });
   await apicore.authenticate({ username, password });
