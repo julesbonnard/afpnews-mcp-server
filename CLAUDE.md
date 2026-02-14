@@ -44,21 +44,27 @@ Required in `.env` (loaded by dotenv):
 
 | Outil    | Description                                                        |
 |----------|--------------------------------------------------------------------|
-| `search` | Recherche d'articles avec filtres (lang, dates, country, slug, size, sortOrder, offset, includeAgendas) |
+| `search` | Recherche d'articles avec filtres (langs, dates, country, slug, product, size, sortOrder, offset, includeAgendas) |
 | `get`    | Récupération d'un article complet par UNO (texte non tronqué)      |
 | `mlt`    | Articles similaires (More Like This) à partir d'un UNO             |
 | `list`   | Liste des valeurs d'une facette (slug, genre, country) avec fréquence |
 
+## MCP Resources
+
+| URI              | Description                                      |
+|------------------|--------------------------------------------------|
+| `afp://breaking` | 10 dernières dépêches AFP (news, tri par date)   |
+| `afp://topics`   | 20 sujets tendance (slugs les plus fréquents)    |
+
+## MCP Prompts
+
+| Prompt            | Arguments             | Description                                           |
+|-------------------|-----------------------|-------------------------------------------------------|
+| `daily-briefing`  | `lang?`               | Briefing quotidien de l'actualité                     |
+| `topic-deep-dive` | `topic`, `lang?`      | Analyse approfondie d'un sujet (search + get + mlt)   |
+| `country-news`    | `country`, `lang?`    | Résumé de l'actualité d'un pays                       |
+
 ## Roadmap — Améliorations fonctionnelles
-
-### Priorité haute
-
-- **Filtre `product` sur search** — permettre de chercher photos, vidéos, infographies (actuellement figé à `news`)
-
-### Priorité moyenne
-
-- **MCP Resources** — exposer du contenu passif : `afp://breaking` (dernières dépêches), `afp://topics` (sujets tendance via `list('slug')`)
-- **MCP Prompts** — templates : `daily-briefing` (actu du jour), `topic-deep-dive` (search + mlt croisés), `country-news` (filtre pays)
 
 ### Priorité basse
 
