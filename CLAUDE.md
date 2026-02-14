@@ -19,7 +19,7 @@ pnpm run start      # Run the MCP server (stdio transport)
 Single-file TypeScript project (`src/index.ts`) that:
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
 2. Registers four MCP tools via `@modelcontextprotocol/sdk`: `search`, `get`, `mlt`, `list`
-3. Authenticates with username/password on each tool call, queries the AFP API
+3. Authenticates with username/password on first call, then reuse or refresh token for every following queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Express + Streamable HTTP with Basic Auth per-session)
 
 ## Environment Variables
