@@ -1,13 +1,17 @@
 import { z } from 'zod';
 import { ServerContext } from './context.js';
 import { formatDocument, GENRE_EXCLUSIONS } from './format.js';
+import { TOPICS } from './topics.js';
 
-export function registerTools({ server, apicore, authenticate }: ServerContext) {
+const ALL_TOPIC_VALUES = Object.values(TOPICS).flat().map(t => t.value);
+const topicEnum = z.enum(ALL_TOPIC_VALUES as [string, ...string[]]);
+
+export function registerTools({ server, apicore }: ServerContext) {
   server.registerTool("search",
     {
       description: "Search AFP news articles",
       inputSchema: {
-        query: z.string().describe("List of keywords to search for in the news articles (e.g. 'climate change'), in the language specified by the 'lang' parameter. If not specified, the search will be performed in all languages. Do not use keywords in multiple languages."),
+        query: z.string().optional().describe("List of keywords to search for in the news articles (e.g. 'climate change'), in the language specified by the 'lang' parameter. If not specified, the search will be performed in all languages. Do not use keywords in multiple languages."),
         langs: z.string().array().optional().describe("Language of the news articles (e.g. 'en', 'fr')"),
         dateFrom: z.string().optional().describe("Start date for the search in ISO format (e.g. '2023-01-01')"),
         dateTo: z.string().optional().describe("End date for the search in ISO format (e.g. '2023-12-31')"),
@@ -16,16 +20,14 @@ export function registerTools({ server, apicore, authenticate }: ServerContext) 
         offset: z.number().optional().describe("Offset for pagination (number of results to skip)"),
         country: z.string().array().optional().describe("Country filter (e.g. 'fra', 'usa')"),
         slug: z.string().array().optional().describe("Topic/slug filter (e.g. 'economy', 'sports')"),
-        product: z.enum(['news', 'photo', 'video', 'multimedia', 'graphic', 'videographic']).optional().describe("Content type filter (default 'news')"),
-        includeAgendas: z.boolean().optional().describe("Whether to include agenda items in the search results (default false)")
+        products: z.enum(['news', 'factcheck', 'photo', 'video', 'multimedia', 'graphic', 'videographic']).optional().describe("Content type filter (default ['news', 'factcheck'])")
       }
     },
-    async ({ query, langs, dateFrom, dateTo, size, sortOrder, offset, country, slug, product = 'news', includeAgendas = false }) => {
-      await authenticate();
+    async ({ query, langs, dateFrom, dateTo, size, sortOrder, offset, country, slug, products = ['news', 'factcheck'] }) => {
       const { documents, count } = await apicore.search({
         query,
         langs,
-        product,
+        products,
         dateFrom,
         dateTo,
         size,
@@ -33,13 +35,13 @@ export function registerTools({ server, apicore, authenticate }: ServerContext) 
         startAt: offset,
         country,
         slug,
-        genreid: includeAgendas ? undefined : GENRE_EXCLUSIONS
-      } as any);
+        genreid: GENRE_EXCLUSIONS // Exclude certain genres that are not relevant for news articles
+      }, ['uno', 'published', 'headline', 'news', 'lang', 'genre']);
       if (count === 0) {
         throw new Error('No results found');
       }
       return {
-        content: documents.map((doc: any) => formatDocument(doc))
+        content: documents.map(doc => formatDocument(doc, false))
       };
     }
   );
@@ -52,19 +54,9 @@ export function registerTools({ server, apicore, authenticate }: ServerContext) 
       }
     },
     async ({ uno }) => {
-      await authenticate();
       const doc = await apicore.get(uno);
-      const d = doc as any;
       return {
-        content: [{
-          type: 'text' as const,
-          uno: String(d.uno),
-          published: new Date(d.published),
-          title: String(d.headline),
-          text: String(d.news.join('\n\n')),
-          lang: String(d.lang),
-          genre: String(d.genre)
-        }]
+        content: [formatDocument(doc, true)]
       };
     }
   );
@@ -79,13 +71,12 @@ export function registerTools({ server, apicore, authenticate }: ServerContext) 
       }
     },
     async ({ uno, lang, size }) => {
-      await authenticate();
       const { documents, count } = await apicore.mlt(uno, lang, size);
       if (count === 0) {
         throw new Error('No similar articles found');
       }
       return {
-        content: documents.map((doc: any) => formatDocument(doc))
+        content: documents.map((doc: any) => formatDocument(doc, false))
       };
     }
   );
@@ -100,7 +91,6 @@ export function registerTools({ server, apicore, authenticate }: ServerContext) 
       }
     },
     async ({ facet, lang, size }) => {
-      await authenticate();
       const params: any = {};
       if (lang) params.langs = [lang];
       const result = await apicore.list(facet, params, size);
@@ -109,6 +99,132 @@ export function registerTools({ server, apicore, authenticate }: ServerContext) 
           type: 'text' as const,
           text: JSON.stringify(result, null, 2)
         }]
+      };
+    }
+  );
+
+  server.registerTool("a-la-une",
+    {
+      description: "Get the latest AFP news stories for a general audience in France (last 24h)",
+      inputSchema: {}
+    },
+    async () => {
+      const { documents } = await apicore.search({
+        products: ['news'],
+        langs: ['fr'],
+        slug: ['afp', 'actualites'],
+        dateFrom: 'now-1d',
+        size: 15,
+        sortOrder: 'desc',
+        genreid: GENRE_EXCLUSIONS
+      }, ['uno', 'published', 'headline', 'news', 'lang', 'genre']);
+      return {
+        content: documents.map(doc => formatDocument(doc, false))
+      };
+    }
+  );
+
+  server.registerTool("agenda",
+    {
+      description: "Get upcoming scheduled events and press releases from AFP",
+      inputSchema: {
+        lang: z.string().optional().describe("Language filter (e.g. 'en', 'fr'). Default: 'fr'")
+      }
+    },
+    async ({ lang }) => {
+      const { documents } = await apicore.search({
+        products: ['news'],
+        langs: [lang || 'fr'],
+        size: 15,
+        sortOrder: 'desc',
+        genreid: ['afpattribute:Agenda']
+      }, ['uno', 'published', 'headline', 'news', 'lang', 'genre']);
+      return {
+        content: documents.map(doc => formatDocument(doc, false))
+      };
+    }
+  );
+
+  server.registerTool("previsions",
+    {
+      description: "Get AFP editorial coverage plans — stories scheduled to be published soon",
+      inputSchema: {
+        lang: z.string().optional().describe("Language filter (e.g. 'en', 'fr'). Default: 'fr'")
+      }
+    },
+    async ({ lang }) => {
+      const { documents } = await apicore.search({
+        products: ['news'],
+        langs: [lang || 'fr'],
+        size: 15,
+        sortOrder: 'desc',
+        genreid: ['afpattribute:Program', 'afpedtype:TextProgram']
+      }, ['uno', 'published', 'headline', 'news', 'lang', 'genre']);
+      return {
+        content: documents.map(doc => formatDocument(doc, false))
+      };
+    }
+  );
+
+  server.registerTool("major-stories",
+    {
+      description: "Get the latest AFP major news articles",
+      inputSchema: {
+        lang: z.string().optional().describe("Language filter (e.g. 'en', 'fr'). Default: 'fr'")
+      }
+    },
+    async ({ lang }) => {
+      const { documents } = await apicore.search({
+        products: ['news'],
+        langs: [lang || 'fr'],
+        size: 15,
+        sortOrder: 'desc',
+        genreid: ['afpattribute:Article']
+      }, ['uno', 'published', 'headline', 'news', 'lang', 'genre']);
+      return {
+        content: documents.map(doc => formatDocument(doc, false))
+      };
+    }
+  );
+
+  server.registerTool("trending-topics",
+    {
+      description: "Get the most trending AFP news topics right now",
+      inputSchema: {
+        lang: z.string().optional().describe("Language filter (e.g. 'en', 'fr'). Default: 'fr'")
+      }
+    },
+    async ({ lang }) => {
+      const result = await apicore.list('slug', {
+        langs: [lang || 'fr'],
+        products: ['news'],
+        dateFrom: 'now-1d'
+      }, 20);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(result, null, 2)
+        }]
+      };
+    }
+  );
+
+  server.registerTool("topic-summary",
+    {
+      description: "Get the latest articles from an AFP Stories topic section",
+      inputSchema: {
+        topic: topicEnum.describe("AFP Stories topic identifier (e.g. 'ONLINE-NEWS-FR_LA-UNE', 'ONLINE-NEWS-EN_TOP-STORIES-INT')")
+      }
+    },
+    async ({ topic }) => {
+      const { documents } = await apicore.search({
+        products: [topic],
+        size: 15,
+        sortOrder: 'desc',
+        genreid: GENRE_EXCLUSIONS
+      }, ['uno', 'published', 'headline', 'news', 'lang', 'genre']);
+      return {
+        content: documents.map(doc => formatDocument(doc, false))
       };
     }
   );
