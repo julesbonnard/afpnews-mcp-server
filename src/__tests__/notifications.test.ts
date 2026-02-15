@@ -8,13 +8,9 @@ function createMockApicore() {
   return {
     notificationCenter: {
       registerService: vi.fn().mockResolvedValue('svc-001'),
-      listServices: vi.fn().mockResolvedValue([
-        { serviceName: 'my-webhook', serviceType: 'rest', serviceIdentifier: 'svc-001' }
-      ]),
+      listServices: vi.fn().mockResolvedValue([]),
+      deleteService: vi.fn().mockResolvedValue('svc-001'),
       addSubscription: vi.fn().mockResolvedValue('sub-001'),
-      listSubscriptions: vi.fn().mockResolvedValue([
-        { name: 'breaking-news', identifier: 'sub-001' }
-      ]),
       subscriptionsInService: vi.fn().mockResolvedValue([
         { name: 'breaking-news', identifier: 'sub-001' }
       ]),
@@ -49,89 +45,52 @@ describe('Notification tools', () => {
     apicore = setup.apicore;
   });
 
-  describe('notification-register-service', () => {
-    it('registers a REST webhook service', async () => {
-      const result = await client.callTool({
-        name: 'notification-register-service',
-        arguments: {
-          name: 'my-webhook',
-          type: 'rest',
-          datas: { href: 'https://example.com/webhook' }
-        }
-      });
-      const msg = result.content![0] as { type: string; text: string };
-      expect(msg.text).toContain('my-webhook');
-      expect(msg.text).toContain('svc-001');
-      expect(apicore.notificationCenter.registerService).toHaveBeenCalledWith({
-        name: 'my-webhook',
-        type: 'rest',
-        datas: { href: 'https://example.com/webhook' }
-      });
-    });
-
-    it('registers an email service', async () => {
-      await client.callTool({
-        name: 'notification-register-service',
-        arguments: {
-          name: 'my-email',
-          type: 'mail',
-          datas: { address: 'test@example.com' }
-        }
-      });
-      expect(apicore.notificationCenter.registerService).toHaveBeenCalledWith({
-        name: 'my-email',
-        type: 'mail',
-        datas: { address: 'test@example.com' }
-      });
-    });
-  });
-
-  describe('notification-list-services', () => {
-    it('returns registered services as JSON', async () => {
-      const result = await client.callTool({
-        name: 'notification-list-services',
-        arguments: {}
-      });
-      const msg = result.content![0] as { type: string; text: string };
-      const parsed = JSON.parse(msg.text);
-      expect(parsed[0].serviceName).toBe('my-webhook');
-    });
-
-    it('returns message when no services exist', async () => {
-      apicore.notificationCenter.listServices.mockResolvedValueOnce([]);
-      const result = await client.callTool({
-        name: 'notification-list-services',
-        arguments: {}
-      });
-      const msg = result.content![0] as { type: string; text: string };
-      expect(msg.text).toBe('No notification services registered.');
-    });
-  });
-
   describe('notification-add-subscription', () => {
-    it('adds a subscription with query filters', async () => {
+    it('creates service if it does not exist and adds subscription', async () => {
       const result = await client.callTool({
         name: 'notification-add-subscription',
         arguments: {
           name: 'breaking-news',
-          service: 'my-webhook',
+          email: 'test@example.com',
           query: 'climate',
           lang: ['fr'],
         }
       });
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toContain('breaking-news');
+      expect(msg.text).toContain('test@example.com');
       expect(msg.text).toContain('sub-001');
+
+      expect(apicore.notificationCenter.listServices).toHaveBeenCalled();
+      expect(apicore.notificationCenter.registerService).toHaveBeenCalledWith({
+        name: 'mcp-mail-service',
+        type: 'mail',
+        datas: { address: 'test@example.com' },
+      });
       expect(apicore.notificationCenter.addSubscription).toHaveBeenCalledWith(
         'breaking-news',
-        'my-webhook',
+        'mcp-mail-service',
         { query: 'climate', langs: ['fr'] }
       );
+    });
+
+    it('skips service creation if it already exists', async () => {
+      apicore.notificationCenter.listServices.mockResolvedValueOnce([
+        { serviceName: 'mcp-mail-service', serviceType: 'mail', serviceIdentifier: 'svc-001' }
+      ]);
+
+      await client.callTool({
+        name: 'notification-add-subscription',
+        arguments: { name: 'test-sub', email: 'test@example.com' }
+      });
+
+      expect(apicore.notificationCenter.registerService).not.toHaveBeenCalled();
+      expect(apicore.notificationCenter.addSubscription).toHaveBeenCalled();
     });
   });
 
   describe('notification-list-subscriptions', () => {
-    it('lists all subscriptions when no service specified', async () => {
+    it('lists subscriptions from the mcp-mail-service', async () => {
       const result = await client.callTool({
         name: 'notification-list-subscriptions',
         arguments: {}
@@ -139,22 +98,11 @@ describe('Notification tools', () => {
       const msg = result.content![0] as { type: string; text: string };
       const parsed = JSON.parse(msg.text);
       expect(parsed[0].name).toBe('breaking-news');
-      expect(apicore.notificationCenter.listSubscriptions).toHaveBeenCalled();
-    });
-
-    it('lists subscriptions for a specific service', async () => {
-      const result = await client.callTool({
-        name: 'notification-list-subscriptions',
-        arguments: { service: 'my-webhook' }
-      });
-      const msg = result.content![0] as { type: string; text: string };
-      const parsed = JSON.parse(msg.text);
-      expect(parsed[0].name).toBe('breaking-news');
-      expect(apicore.notificationCenter.subscriptionsInService).toHaveBeenCalledWith('my-webhook');
+      expect(apicore.notificationCenter.subscriptionsInService).toHaveBeenCalledWith('mcp-mail-service');
     });
 
     it('returns message when no subscriptions found', async () => {
-      apicore.notificationCenter.listSubscriptions.mockResolvedValueOnce([]);
+      apicore.notificationCenter.subscriptionsInService.mockResolvedValueOnce([]);
       const result = await client.callTool({
         name: 'notification-list-subscriptions',
         arguments: {}
@@ -165,15 +113,31 @@ describe('Notification tools', () => {
   });
 
   describe('notification-delete-subscription', () => {
-    it('deletes a subscription', async () => {
+    it('deletes a subscription and keeps service if others remain', async () => {
+      apicore.notificationCenter.subscriptionsInService.mockResolvedValueOnce([
+        { name: 'other-sub', identifier: 'sub-002' }
+      ]);
+
       const result = await client.callTool({
         name: 'notification-delete-subscription',
-        arguments: { service: 'my-webhook', name: 'breaking-news' }
+        arguments: { name: 'breaking-news' }
       });
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toContain('breaking-news');
       expect(msg.text).toContain('deleted');
-      expect(apicore.notificationCenter.deleteSubscription).toHaveBeenCalledWith('my-webhook', 'breaking-news');
+      expect(apicore.notificationCenter.deleteSubscription).toHaveBeenCalledWith('mcp-mail-service', 'breaking-news');
+      expect(apicore.notificationCenter.deleteService).not.toHaveBeenCalled();
+    });
+
+    it('deletes the service when no subscriptions remain', async () => {
+      apicore.notificationCenter.subscriptionsInService.mockResolvedValueOnce([]);
+
+      await client.callTool({
+        name: 'notification-delete-subscription',
+        arguments: { name: 'last-sub' }
+      });
+
+      expect(apicore.notificationCenter.deleteService).toHaveBeenCalledWith('mcp-mail-service');
     });
   });
 });

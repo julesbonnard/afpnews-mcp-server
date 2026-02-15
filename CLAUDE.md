@@ -38,7 +38,7 @@ src/
 ```
 
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
-2. Registers MCP tools via `@modelcontextprotocol/sdk`: `search`, `get`, `mlt`, `list`, and 5 notification tools
+2. Registers MCP tools via `@modelcontextprotocol/sdk`: `search`, `get`, `mlt`, `list`, and 3 notification tools
 3. Authenticates with username/password on first call, then reuse or refresh token for every following queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Express + Streamable HTTP with Basic Auth per-session)
 
@@ -68,11 +68,9 @@ Required in `.env` (loaded by dotenv):
 | `get`    | Récupération d'un article complet par UNO (texte non tronqué)      |
 | `mlt`    | Articles similaires (More Like This) à partir d'un UNO             |
 | `list`   | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
-| `notification-register-service` | Enregistrer un service de notification (mail, rest, sqs, jms) |
-| `notification-list-services` | Lister les services de notification enregistrés |
-| `notification-add-subscription` | Ajouter une souscription à un service (filtres: query, lang, product, country, slug) |
-| `notification-list-subscriptions` | Lister les souscriptions (toutes ou par service) |
-| `notification-delete-subscription` | Supprimer une souscription d'un service |
+| `notification-add-subscription` | Créer une alerte email (crée le service `mcp-mail-service` automatiquement) |
+| `notification-list-subscriptions` | Lister les souscriptions email actives |
+| `notification-delete-subscription` | Supprimer une souscription (supprime le service si plus aucune souscription) |
 
 ### Presets
 
