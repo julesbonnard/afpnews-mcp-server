@@ -44,11 +44,14 @@ describe('MCP integration', () => {
     apicore = setup.apicore;
   });
 
-  describe('search tool', () => {
-    it('returns markdown with UNO and title', async () => {
-      const result = await client.callTool({ name: 'search', arguments: { query: 'test' } });
-      expect(result.content).toHaveLength(3);
-      const first = result.content![0] as { type: string; text: string };
+  describe('afp_search_articles tool', () => {
+    it('returns pagination line and markdown with UNO and title', async () => {
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
+      // 1 pagination line + 3 documents
+      expect(result.content).toHaveLength(4);
+      const pagination = result.content![0] as { type: string; text: string };
+      expect(pagination.text).toContain('Showing 3 of 3 results');
+      const first = result.content![1] as { type: string; text: string };
       expect(first.type).toBe('text');
       expect(first.text).toContain('## Article 1');
       expect(first.text).toContain('UNO: AFP-TEST-001');
@@ -56,7 +59,7 @@ describe('MCP integration', () => {
 
     it('returns text message on empty results', async () => {
       apicore.search.mockResolvedValueOnce({ documents: [], count: 0 });
-      const result = await client.callTool({ name: 'search', arguments: { query: 'nothing' } });
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'nothing' } });
       expect(result.content).toHaveLength(1);
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toBe('No results found.');
@@ -64,23 +67,24 @@ describe('MCP integration', () => {
 
     it('returns excerpt by default (no fullText)', async () => {
       apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
-      const result = await client.callTool({ name: 'search', arguments: { query: 'test' } });
-      const msg = result.content![0] as { type: string; text: string };
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
+      // pagination line + 1 document
+      const msg = result.content![1] as { type: string; text: string };
       expect(msg.text).toContain('Fourth paragraph wraps up.');
       expect(msg.text).not.toContain('Fifth paragraph is extra content.');
     });
 
     it('returns full text when fullText=true', async () => {
       apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
-      const result = await client.callTool({ name: 'search', arguments: { query: 'test', fullText: true } });
-      const msg = result.content![0] as { type: string; text: string };
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', fullText: true } });
+      const msg = result.content![1] as { type: string; text: string };
       expect(msg.text).toContain('Fifth paragraph is extra content.');
     });
 
     it('preset a-la-une applies filters and defaults to full text', async () => {
       apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
-      const result = await client.callTool({ name: 'search', arguments: { preset: 'a-la-une' } });
-      const msg = result.content![0] as { type: string; text: string };
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { preset: 'a-la-une' } });
+      const msg = result.content![1] as { type: string; text: string };
       expect(msg.text).toContain('Fifth paragraph is extra content.');
 
       const [request] = apicore.search.mock.calls.at(-1)!;
@@ -90,59 +94,105 @@ describe('MCP integration', () => {
       expect(request.dateFrom).toBe('now-1d');
       expect(request.size).toBe(1);
     });
+
+    it('shows pagination info when there are more results', async () => {
+      apicore.search.mockResolvedValueOnce({ documents: makeDocs(3), count: 10 });
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
+      const pagination = result.content![0] as { type: string; text: string };
+      expect(pagination.text).toContain('Showing 3 of 10 results');
+      expect(pagination.text).toContain('offset=3');
+    });
+
+    it('returns isError on API failure', async () => {
+      apicore.search.mockRejectedValueOnce(new Error('Network timeout'));
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
+      expect(result.isError).toBe(true);
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('Network timeout');
+    });
   });
 
-  describe('get tool', () => {
+  describe('afp_get_article tool', () => {
     it('returns full document with fullText', async () => {
-      const result = await client.callTool({ name: 'get', arguments: { uno: 'AFP-TEST-001' } });
+      const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-001' } });
       expect(result.content).toHaveLength(1);
       const doc = result.content![0] as { type: string; text: string };
       expect(doc.type).toBe('text');
       expect(doc.text).toContain('## Article 1');
     });
+
+    it('returns isError on API failure', async () => {
+      apicore.get.mockRejectedValueOnce(new Error('Not found'));
+      const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'BAD-UNO' } });
+      expect(result.isError).toBe(true);
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('BAD-UNO');
+      expect(msg.text).toContain('Not found');
+    });
   });
 
-  describe('mlt tool', () => {
-    it('returns formatted similar documents', async () => {
-      const result = await client.callTool({ name: 'mlt', arguments: { uno: 'AFP-TEST-001', lang: 'fr' } });
-      expect(result.content).toHaveLength(2);
-      const first = result.content![0] as { type: string; text: string };
+  describe('afp_find_similar tool', () => {
+    it('returns summary line and formatted similar documents', async () => {
+      const result = await client.callTool({ name: 'afp_find_similar', arguments: { uno: 'AFP-TEST-001', lang: 'fr' } });
+      // 1 summary line + 2 documents
+      expect(result.content).toHaveLength(3);
+      const summary = result.content![0] as { type: string; text: string };
+      expect(summary.text).toContain('Found 2 similar articles');
+      const first = result.content![1] as { type: string; text: string };
       expect(first.text).toContain('UNO:');
     });
 
     it('returns text message on empty results', async () => {
       apicore.mlt.mockResolvedValueOnce({ documents: [], count: 0 });
-      const result = await client.callTool({ name: 'mlt', arguments: { uno: 'AFP-TEST-001', lang: 'fr' } });
+      const result = await client.callTool({ name: 'afp_find_similar', arguments: { uno: 'AFP-TEST-001', lang: 'fr' } });
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toBe('No similar articles found.');
     });
+
+    it('returns isError on API failure', async () => {
+      apicore.mlt.mockRejectedValueOnce(new Error('Invalid UNO'));
+      const result = await client.callTool({ name: 'afp_find_similar', arguments: { uno: 'BAD', lang: 'fr' } });
+      expect(result.isError).toBe(true);
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('Invalid UNO');
+    });
   });
 
-  describe('list tool', () => {
-    it('returns JSON', async () => {
-      const result = await client.callTool({ name: 'list', arguments: { facet: 'slug' } });
+  describe('afp_list_facets tool', () => {
+    it('returns markdown-formatted facet list', async () => {
+      const result = await client.callTool({ name: 'afp_list_facets', arguments: { facet: 'slug' } });
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.type).toBe('text');
-      const parsed = JSON.parse(msg.text);
-      expect(parsed[0].key).toBe('economy');
+      expect(msg.text).toContain('## Facet: slug');
+      expect(msg.text).toContain('**economy**');
+      expect(msg.text).toContain('42 articles');
     });
 
-    it('returns a validation message when facet is missing without preset', async () => {
-      const result = await client.callTool({ name: 'list', arguments: {} });
+    it('returns isError when facet is missing without preset', async () => {
+      const result = await client.callTool({ name: 'afp_list_facets', arguments: {} });
+      expect(result.isError).toBe(true);
       const msg = result.content![0] as { type: string; text: string };
-      expect(msg.text).toBe('Missing required parameter: facet (or provide preset: trending-topics).');
+      expect(msg.text).toContain('Missing required parameter: facet');
     });
 
     it('preset trending-topics applies list overrides', async () => {
-      const result = await client.callTool({ name: 'list', arguments: { preset: 'trending-topics' } });
+      const result = await client.callTool({ name: 'afp_list_facets', arguments: { preset: 'trending-topics' } });
       const msg = result.content![0] as { type: string; text: string };
-      const parsed = JSON.parse(msg.text);
-      expect(parsed[0].key).toBe('economy');
+      expect(msg.text).toContain('## Trending Topics');
+      expect(msg.text).toContain('42 articles');
 
       const [facet, params, limit] = apicore.list.mock.calls.at(-1)!;
       expect(facet).toBe('slug');
       expect(params).toMatchObject({ langs: ['fr'], product: ['news'], dateFrom: 'now-1d' });
       expect(limit).toBe(20);
+    });
+
+    it('returns isError on API failure', async () => {
+      apicore.list.mockRejectedValueOnce(new Error('Service unavailable'));
+      const result = await client.callTool({ name: 'afp_list_facets', arguments: { facet: 'slug' } });
+      expect(result.isError).toBe(true);
+      const msg = result.content![0] as { type: string; text: string };
+      expect(msg.text).toContain('Service unavailable');
     });
   });
 
@@ -157,12 +207,12 @@ describe('MCP integration', () => {
   });
 
   describe('prompts', () => {
-    it('daily-briefing returns user message', async () => {
+    it('daily-briefing returns user message with new tool name', async () => {
       const result = await client.getPrompt({ name: 'daily-briefing', arguments: {} });
       expect(result.messages).toHaveLength(1);
       expect(result.messages[0].role).toBe('user');
       const content = result.messages[0].content as { type: string; text: string };
-      expect(content.text).toContain('search');
+      expect(content.text).toContain('afp_search_articles');
     });
 
     it('country-news returns user message with country', async () => {
@@ -170,6 +220,14 @@ describe('MCP integration', () => {
       expect(result.messages).toHaveLength(1);
       const content = result.messages[0].content as { type: string; text: string };
       expect(content.text).toContain('fra');
+    });
+
+    it('comprehensive-analysis references new tool names', async () => {
+      const result = await client.getPrompt({ name: 'comprehensive-analysis', arguments: { query: 'test' } });
+      const content = result.messages[0].content as { type: string; text: string };
+      expect(content.text).toContain('afp_search_articles');
+      expect(content.text).toContain('afp_find_similar');
+      expect(content.text).toContain('afp_get_article');
     });
   });
 });

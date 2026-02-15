@@ -23,21 +23,20 @@ src/
 ├── index.ts              # Entry point (stdio & HTTP transports)
 ├── server.ts             # createServer + ServerContext
 ├── tools/
-│   └── index.ts          # registerTools() — search, get, mlt, list
+│   └── index.ts          # registerTools() — afp_search_articles, afp_get_article, afp_find_similar, afp_list_facets
 ├── prompts/
 │   └── index.ts          # registerPrompts()
 ├── resources/
 │   └── index.ts          # registerResources()
 ├── utils/
-│   ├── format.ts         # formatDocument, GENRE_EXCLUSIONS, DEFAULT_FIELDS
-│   ├── helpers.ts        # searchAndFormat
-│   ├── types.ts          # AFPDocument, FormattedContent
+│   ├── format.ts         # formatDocument, textContent, toolError, truncateIfNeeded, buildPaginationLine
+│   ├── types.ts          # AFPDocument, TextContent, FormattedContent, constants
 │   └── topics.ts         # TOPICS, getTopicLabel, formatTopicList
 └── __tests__/
 ```
 
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
-2. Registers MCP tools via `@modelcontextprotocol/sdk`: `search`, `get`, `mlt`, `list`
+2. Registers MCP tools via `@modelcontextprotocol/sdk`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`
 3. Authenticates with username/password on first call, then reuse or refresh token for every following queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Express + Streamable HTTP with Basic Auth per-session)
 
@@ -61,16 +60,16 @@ Required in `.env` (loaded by dotenv):
 
 ## Outils MCP disponibles
 
-| Outil    | Description                                                        |
-|----------|--------------------------------------------------------------------|
-| `search` | Outil principal de recherche d'articles (filtres + presets + mode fullText) |
-| `get`    | Récupération d'un article complet par UNO (texte non tronqué)      |
-| `mlt`    | Articles similaires (More Like This) à partir d'un UNO             |
-| `list`   | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
+| Outil                  | Description                                                        |
+|------------------------|--------------------------------------------------------------------|
+| `afp_search_articles`  | Outil principal de recherche d'articles (filtres + presets + mode fullText) |
+| `afp_get_article`      | Récupération d'un article complet par UNO (texte non tronqué)      |
+| `afp_find_similar`     | Articles similaires (More Like This) à partir d'un UNO             |
+| `afp_list_facets`      | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
 
 ### Presets
 
-#### `search.preset`
+#### `afp_search_articles.preset`
 
 Presets disponibles:
 - `a-la-une`
@@ -79,10 +78,10 @@ Presets disponibles:
 - `major-stories`
 
 Comportement:
-- Chaque preset applique automatiquement un jeu de filtres `search` adapté.
+- Chaque preset applique automatiquement un jeu de filtres `afp_search_articles` adapté.
 - Le preset peut être affiné via les autres paramètres (`lang`, `size`, etc.), selon les champs déjà fixés par le preset.
 
-#### `list.preset`
+#### `afp_list_facets.preset`
 
 Preset disponible:
 - `trending-topics` (équivalent de la logique “topics tendance”)
@@ -91,7 +90,7 @@ Comportement:
 - Si `preset=trending-topics`, `facet` est ignoré et remplacé en interne par `slug`.
 - Sans preset, `facet` est requis.
 
-### Paramètre `fullText` (tool `search`)
+### Paramètre `fullText` (tool `afp_search_articles`)
 
 - Type: `boolean`
 - Défaut global: `false`

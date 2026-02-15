@@ -18,7 +18,7 @@ export function registerPrompts({ server }: ServerContext) {
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `Use the AFP search tool to find today's most important news (dateFrom: "${today}", langs: ["${l}"], size: 15, sortOrder: "desc"). Then write a concise daily briefing summarizing the key stories, grouped by theme.`
+            text: `Use the afp_search_articles tool to find today's most important news (dateFrom: "${today}", lang: ["${l}"], size: 15, sortOrder: "desc"). Then write a concise daily briefing summarizing the key stories, grouped by theme.`
           }
         }]
       };
@@ -40,9 +40,9 @@ export function registerPrompts({ server }: ServerContext) {
           content: {
             type: 'text' as const,
             text: `Perform an in-depth analysis on "${query}":
-1. Use the AFP search tool to find recent articles about "${query}" (size: 10).
-2. Use the "mlt" tool on the most relevant article to find related coverage.
-3. Use the "get" tool to retrieve the full text of the most important articles.
+1. Use afp_search_articles to find recent articles about "${query}" (size: 10).
+2. Use afp_find_similar on the most relevant article to find related coverage.
+3. Use afp_get_article to retrieve the full text of the most important articles.
 4. Synthesize the information from these articles to write a comprehensive analysis covering: key facts, timeline, different angles, and outlook.`
           }
         }]
@@ -65,8 +65,8 @@ export function registerPrompts({ server }: ServerContext) {
           content: {
             type: 'text' as const,
             text: `Factcheck the following query: "${query}":
-1. Use the AFP search tool to find recent factchecks related to "${query}" (genreid:"afpattribute:FactcheckInvestigation") (size: 10).
-2. For each relevant factcheck, use the "get" tool to retrieve the full text.
+1. Use afp_search_articles to find recent factchecks related to "${query}" (genreid:"afpattribute:FactcheckInvestigation") (size: 10).
+2. For each relevant factcheck, use afp_get_article to retrieve the full text.
 3. Summarize the findings, including: what is being claimed, what the factcheck verdict is, and the evidence provided.`
           }
         }]
@@ -89,7 +89,7 @@ export function registerPrompts({ server }: ServerContext) {
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `Use the AFP search tool to find recent news for country "${country}" (langs: ["${lang}"], country: ["${country}"], size: 15). Write a news summary for this country covering the main stories of the day.`
+            text: `Use afp_search_articles to find recent news for country "${country}" (lang: ["${lang}"], country: ["${country}"], size: 15). Write a news summary for this country covering the main stories of the day.`
           }
         }]
       };
