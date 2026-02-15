@@ -23,8 +23,7 @@ src/
 ├── index.ts              # Entry point (stdio & HTTP transports)
 ├── server.ts             # createServer + ServerContext
 ├── tools/
-│   ├── index.ts          # registerTools() — search, get, mlt, list
-│   └── notifications.ts  # registerNotificationTools() — notification center
+│   └── index.ts          # registerTools() — search, get, mlt, list
 ├── prompts/
 │   └── index.ts          # registerPrompts()
 ├── resources/
@@ -38,7 +37,7 @@ src/
 ```
 
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
-2. Registers MCP tools via `@modelcontextprotocol/sdk`: `search`, `get`, `mlt`, `list`, and 3 notification tools
+2. Registers MCP tools via `@modelcontextprotocol/sdk`: `search`, `get`, `mlt`, `list`
 3. Authenticates with username/password on first call, then reuse or refresh token for every following queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Express + Streamable HTTP with Basic Auth per-session)
 
@@ -68,9 +67,6 @@ Required in `.env` (loaded by dotenv):
 | `get`    | Récupération d'un article complet par UNO (texte non tronqué)      |
 | `mlt`    | Articles similaires (More Like This) à partir d'un UNO             |
 | `list`   | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
-| `notification-add-subscription` | Créer une alerte email (crée le service `mcp-mail-service` automatiquement) |
-| `notification-list-subscriptions` | Lister les souscriptions email actives |
-| `notification-delete-subscription` | Supprimer une souscription (supprime le service si plus aucune souscription) |
 
 ### Presets
 
@@ -107,4 +103,6 @@ Règles:
 
 ## Roadmap — Améliorations fonctionnelles
 
-Pas d'améliorations en attente.
+### Priorité basse
+
+- **Notifications / veille** — exploiter le Notification Center de l'API (`registerService`, `addSubscription`) pour créer des alertes par webhook ou email (bloqué : l'API côté serveur ne fonctionne pas actuellement)

@@ -26,7 +26,7 @@ export function registerTools({ server, apicore }: ServerContext) {
         product: z.enum(['news', 'factcheck', 'photo', 'video', 'multimedia', 'graphic', 'videographic']).array().optional().describe("Content type filter (default ['news', 'factcheck'])")
       }
     },
-    async ({ preset, fullText = false, query, lang, dateFrom, dateTo, size, sortOrder, offset, country, slug, product = ['news', 'factcheck'] }) => {
+    async ({ preset, fullText = false, query, lang, dateFrom, dateTo, size = 10, sortOrder = 'desc', offset, country, slug, product = ['news', 'factcheck'] }) => {
       let request: any = {
         query,
         lang,

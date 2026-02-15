@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ApiCore } from 'afpnews-api';
 import { registerTools } from './tools/index.js';
-import { registerNotificationTools } from './tools/notifications.js';
 import { registerResources } from './resources/index.js';
 import { registerPrompts } from './prompts/index.js';
 
@@ -22,7 +21,6 @@ export async function createServer(apiKey: string, username: string, password: s
   const ctx = { server, apicore };
 
   registerTools(ctx);
-  registerNotificationTools(ctx);
   registerResources(ctx);
   registerPrompts(ctx);
 
