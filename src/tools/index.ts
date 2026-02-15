@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ServerContext } from './server.js';
-import { formatDocument, DEFAULT_FIELDS, GENRE_EXCLUSIONS } from './format.js';
+import { ServerContext } from '../server.js';
+import { formatDocument, DEFAULT_FIELDS, GENRE_EXCLUSIONS } from '../utils/format.js';
 
 const SEARCH_PRESET_VALUES = ['a-la-une', 'agenda', 'previsions', 'major-stories'] as const;
 const searchPresetEnum = z.enum(SEARCH_PRESET_VALUES);

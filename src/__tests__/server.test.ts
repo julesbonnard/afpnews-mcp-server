@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { registerTools } from '../tools.js';
-import { registerResources } from '../resources.js';
-import { registerPrompts } from '../prompts.js';
+import { registerTools } from '../tools/index.js';
+import { registerResources } from '../resources/index.js';
+import { registerPrompts } from '../prompts/index.js';
 import { FIXTURE_DOC, makeDocs } from './fixtures.js';
 
 function createMockApicore() {

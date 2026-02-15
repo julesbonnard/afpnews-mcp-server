@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDocument, DEFAULT_FIELDS } from '../format.js';
+import { formatDocument, DEFAULT_FIELDS } from '../utils/format.js';
 import { FIXTURE_DOC, FIXTURE_DOC_MINIMAL } from './fixtures.js';
 
 describe('formatDocument', () => {

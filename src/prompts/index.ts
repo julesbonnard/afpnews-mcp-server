@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ServerContext } from './server.js';
+import { ServerContext } from '../server.js';
 
 export function registerPrompts({ server }: ServerContext) {
   server.registerPrompt("daily-briefing",

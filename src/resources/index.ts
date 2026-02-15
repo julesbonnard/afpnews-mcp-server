@@ -1,5 +1,5 @@
-import { ServerContext } from './server.js';
-import { TOPICS } from './topics.js';
+import { ServerContext } from '../server.js';
+import { TOPICS } from '../utils/topics.js';
 
 export function registerResources({ server }: ServerContext) {
   server.registerResource("topics",

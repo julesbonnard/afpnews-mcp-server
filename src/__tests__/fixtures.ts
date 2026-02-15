@@ -1,4 +1,4 @@
-import type { AFPDocument } from '../types.js';
+import type { AFPDocument } from '../utils/types.js';
 
 export const FIXTURE_DOC: AFPDocument = {
   uno: 'AFP-TEST-001',
