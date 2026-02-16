@@ -1,5 +1,5 @@
 {
-  "name": "afpnews-mcp",
+  "name": "afpnews-mcp-server",
   "version": "1.1.0",
   "description": "",
   "main": "build/index.js",
