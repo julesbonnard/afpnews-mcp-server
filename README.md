@@ -25,6 +25,12 @@ APICORE_USERNAME=your-username
 APICORE_PASSWORD=your-password
 ```
 
+Or for stdio only, provide a serialized auth token instead:
+
+```
+APICORE_AUTH_TOKEN={"accessToken":"...","refreshToken":"...","tokenExpires":1735689600000,"authType":"credentials"}
+```
+
 ## Usage
 
 ### Stdio transport (default)
@@ -33,6 +39,12 @@ For local MCP clients like Claude Code or Claude Desktop:
 
 ```bash
 pnpm run start
+```
+
+Direct CLI call (same stdio behavior):
+
+```bash
+APICORE_AUTH_TOKEN='{"accessToken":"...","refreshToken":"...","tokenExpires":1735689600000,"authType":"credentials"}' node build/index.js
 ```
 
 #### Claude Code
