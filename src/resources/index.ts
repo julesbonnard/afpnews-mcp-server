@@ -1,20 +1,18 @@
-import { ServerContext } from '../server.js';
-import { TOPICS } from '../utils/topics.js';
+import type { ServerContext } from '../server.js';
+import { topicsResource } from './topics.js';
+
+export const RESOURCE_DEFINITIONS = [topicsResource] as const;
 
 export function registerResources({ server }: ServerContext) {
-  server.registerResource("topics",
-    "afp://topics",
-    {
-      description: "AFP Stories topic catalog — available sections by language (fr, en, de, pt, es, ar) with their identifiers",
-      mimeType: "application/json"
-    },
-    async () => {
-      return {
-        contents: [{
-          uri: "afp://topics",
-          text: JSON.stringify(TOPICS, null, 2)
-        }]
-      };
-    }
-  );
+  for (const resource of RESOURCE_DEFINITIONS) {
+    server.registerResource(
+      resource.name,
+      resource.uri,
+      {
+        description: resource.description,
+        mimeType: resource.mimeType,
+      },
+      resource.handler,
+    );
+  }
 }

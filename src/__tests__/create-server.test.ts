@@ -46,24 +46,6 @@ describe('createServer auth configuration', () => {
     apiCoreInstances.length = 0;
   });
 
-  it('uses a provided AuthToken without authenticate call', async () => {
-    const token = {
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-      tokenExpires: 9999999999,
-      authType: 'credentials' as const,
-    };
-
-    await createServer(token);
-
-    expect(apiCoreInstances).toHaveLength(1);
-    expect(apiCoreInstances[0].token).toEqual(token);
-    expect(authenticateMock).not.toHaveBeenCalled();
-    expect(registerToolsMock).toHaveBeenCalledTimes(1);
-    expect(registerResourcesMock).toHaveBeenCalledTimes(1);
-    expect(registerPromptsMock).toHaveBeenCalledTimes(1);
-  });
-
   it('uses credentials and authenticates when apiKey is provided', async () => {
     await createServer('api-key', 'user', 'pass');
 
@@ -72,7 +54,7 @@ describe('createServer auth configuration', () => {
     expect(authenticateMock).toHaveBeenCalledWith({ username: 'user', password: 'pass' });
   });
 
-  it('throws on missing credentials when token is not provided', async () => {
+  it('throws on missing credentials', async () => {
     await expect(createServer('api-key', 'user')).rejects.toThrow(
       'Missing authentication configuration',
     );

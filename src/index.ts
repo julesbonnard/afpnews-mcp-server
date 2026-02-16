@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { AuthToken } from 'afpnews-api';
 import 'dotenv/config';
 import { createServer } from './server.js';
 
@@ -17,54 +16,20 @@ function decodeBasicAuth(header: string): { username: string; password: string }
   };
 }
 
-type StdioAuthConfig =
-  | { mode: 'token'; token: AuthToken }
-  | { mode: 'credentials'; apiKey: string; username: string; password: string };
-
-function parseAuthToken(tokenValue: string): AuthToken {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(tokenValue);
-  } catch {
-    throw new Error('APICORE_AUTH_TOKEN must be a valid JSON object');
-  }
-
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('APICORE_AUTH_TOKEN must be a JSON object');
-  }
-
-  const token = parsed as Partial<AuthToken>;
-  if (
-    typeof token.accessToken !== 'string' ||
-    typeof token.refreshToken !== 'string' ||
-    typeof token.tokenExpires !== 'number' ||
-    (token.authType !== 'anonymous' && token.authType !== 'credentials')
-  ) {
-    throw new Error(
-      'APICORE_AUTH_TOKEN must include accessToken, refreshToken, tokenExpires and authType',
-    );
-  }
-
-  return token as AuthToken;
-}
+type StdioAuthConfig = { apiKey: string; username: string; password: string };
 
 export function resolveStdioAuthConfig(env: NodeJS.ProcessEnv = process.env): StdioAuthConfig {
-  const rawToken = env.APICORE_AUTH_TOKEN?.trim();
-  if (rawToken) {
-    return { mode: 'token', token: parseAuthToken(rawToken) };
-  }
-
   const apiKey = env.APICORE_API_KEY?.trim();
   const username = env.APICORE_USERNAME?.trim();
   const password = env.APICORE_PASSWORD?.trim();
 
   if (!apiKey || !username || !password) {
     throw new Error(
-      'Missing stdio auth configuration: set APICORE_AUTH_TOKEN or APICORE_API_KEY + APICORE_USERNAME + APICORE_PASSWORD.',
+      'Missing stdio auth configuration: set APICORE_API_KEY + APICORE_USERNAME + APICORE_PASSWORD.',
     );
   }
 
-  return { mode: 'credentials', apiKey, username, password };
+  return { apiKey, username, password };
 }
 
 async function startHttpServer() {
@@ -138,10 +103,7 @@ async function startHttpServer() {
 
 async function startStdioServer() {
   const authConfig = resolveStdioAuthConfig();
-  const server =
-    authConfig.mode === 'token'
-      ? await createServer(authConfig.token)
-      : await createServer(authConfig.apiKey, authConfig.username, authConfig.password);
+  const server = await createServer(authConfig.apiKey, authConfig.username, authConfig.password);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('MCP stdio server started');

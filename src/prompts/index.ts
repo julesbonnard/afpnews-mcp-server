@@ -1,98 +1,26 @@
-import { z } from 'zod';
-import { ServerContext } from '../server.js';
+import type { ServerContext } from '../server.js';
+import { dailyBriefingPrompt } from './daily-briefing.js';
+import { comprehensiveAnalysisPrompt } from './comprehensive-analysis.js';
+import { factcheckPrompt } from './factcheck.js';
+import { countryNewsPrompt } from './country-news.js';
+
+export const PROMPT_DEFINITIONS = [
+  dailyBriefingPrompt,
+  comprehensiveAnalysisPrompt,
+  factcheckPrompt,
+  countryNewsPrompt,
+] as const;
 
 export function registerPrompts({ server }: ServerContext) {
-  server.registerPrompt("daily-briefing",
-    {
-      title: "Daily Briefing",
-      description: "Generate a news briefing for today",
-      argsSchema: {
-        lang: z.string().optional().describe("Language (e.g. 'en', 'fr'). Default: 'fr'")
-      }
-    },
-    async ({ lang }) => {
-      const l = lang || 'fr';
-      const today = new Date().toISOString().split('T')[0];
-      return {
-        messages: [{
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `Use the afp_search_articles tool to find today's most important news (dateFrom: "${today}", lang: ["${l}"], size: 15, sortOrder: "desc"). Then write a concise daily briefing summarizing the key stories, grouped by theme.`
-          }
-        }]
-      };
-    }
-  );
-
-  server.registerPrompt("comprehensive-analysis",
-    {
-      title: "Comprehensive analysis",
-      description: "Perform an in-depth analysis on a specific topic",
-      argsSchema: {
-        query: z.string().describe("The topic or query to analyze (e.g. 'climate change', 'French elections')")
-      }
-    },
-    async ({ query }) => {
-      return {
-        messages: [{
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `Perform an in-depth analysis on "${query}":
-1. Use afp_search_articles to find recent articles about "${query}" (size: 10).
-2. Use afp_find_similar on the most relevant article to find related coverage.
-3. Use afp_get_article to retrieve the full text of the most important articles.
-4. Synthesize the information from these articles to write a comprehensive analysis covering: key facts, timeline, different angles, and outlook.`
-          }
-        }]
-      };
-    }
-  );
-
-  server.registerPrompt("factcheck",
-    {
-      title: "Fact Check",
-      description: "Verify facts about a specific topic",
-      argsSchema: {
-        query: z.string().describe("The topic or query to verify (e.g. 'climate change', 'French elections')")
-      }
-    },
-    async ({ query }) => {
-      return {
-        messages: [{
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `Factcheck the following query: "${query}":
-1. Use afp_search_articles to find recent factchecks related to "${query}" (genreid:"afpattribute:FactcheckInvestigation") (size: 10).
-2. For each relevant factcheck, use afp_get_article to retrieve the full text.
-3. Summarize the findings, including: what is being claimed, what the factcheck verdict is, and the evidence provided.`
-          }
-        }]
-      };
-    }
-  );
-
-  server.registerPrompt("country-news",
-    {
-      title: "Country News",
-      description: "News summary for a specific country",
-      argsSchema: {
-        country: z.string().describe("Country code (e.g. 'fra', 'usa', 'gbr')"),
-        lang: z.string().optional().describe("Language (e.g. 'en', 'fr'). Default: 'fr'")
-      }
-    },
-    async ({ country, lang = 'fr' }) => {
-      return {
-        messages: [{
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `Use afp_search_articles to find recent news for country "${country}" (lang: ["${lang}"], country: ["${country}"], size: 15). Write a news summary for this country covering the main stories of the day.`
-          }
-        }]
-      };
-    }
-  );
+  for (const prompt of PROMPT_DEFINITIONS) {
+    server.registerPrompt(
+      prompt.name,
+      {
+        title: prompt.title,
+        description: prompt.description,
+        argsSchema: prompt.argsSchema,
+      },
+      prompt.handler,
+    );
+  }
 }

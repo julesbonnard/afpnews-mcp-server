@@ -11,7 +11,7 @@ MCP (Model Context Protocol) server that exposes AFP news tools for LLM-based ed
 ```bash
 pnpm install        # Install dependencies
 pnpm run build      # Compile TypeScript and make output executable
-pnpm run start      # Run the MCP server (stdio transport)
+pnpm run start      # Run the MCP server (stdio transport by default)
 ```
 
 ## Architecture
@@ -22,12 +22,23 @@ TypeScript project organized in `src/`:
 src/
 ├── index.ts              # Entry point (stdio & HTTP transports)
 ├── server.ts             # createServer + ServerContext
+├── definitions.ts        # Server-agnostic exports (tools/prompts/resources)
 ├── tools/
-│   └── index.ts          # registerTools() — afp_search_articles, afp_get_article, afp_find_similar, afp_list_facets
+│   ├── index.ts          # registerTools() MCP glue
+│   ├── shared.ts         # Shared enums/constants/helpers
+│   ├── search-articles.ts
+│   ├── get-article.ts
+│   ├── find-similar.ts
+│   └── list-facets.ts
 ├── prompts/
-│   └── index.ts          # registerPrompts()
+│   ├── index.ts          # registerPrompts() MCP glue
+│   ├── daily-briefing.ts
+│   ├── comprehensive-analysis.ts
+│   ├── factcheck.ts
+│   └── country-news.ts
 ├── resources/
-│   └── index.ts          # registerResources()
+│   ├── index.ts          # registerResources() MCP glue
+│   └── topics.ts
 ├── utils/
 │   ├── format.ts         # formatDocument, textContent, toolError, truncateIfNeeded, buildPaginationLine
 │   ├── types.ts          # AFPDocument, TextContent, FormattedContent, constants
@@ -39,6 +50,13 @@ src/
 2. Registers MCP tools via `@modelcontextprotocol/sdk`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`
 3. Authenticates with username/password on first call, then reuse or refresh token for every following queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Express + Streamable HTTP with Basic Auth per-session)
+
+### Definitions-First Pattern
+
+- Tool/prompt/resource files are server-agnostic definitions only.
+- MCP-specific glue (`server.registerTool`, `server.registerPrompt`, `server.registerResource`) lives only in each domain `index.ts`.
+- Aggregated non-MCP exports are provided in `src/definitions.ts`.
+- Published subpath export: `afpnews-mcp-server/definitions`.
 
 ## Environment Variables
 
@@ -57,6 +75,9 @@ Required in `.env` (loaded by dotenv):
 - **Build output**: `build/` directory
 - **Tests**: vitest (`pnpm test`)
 - Document types from `afpnews-api` are untyped — the code uses `(doc as any)` casts
+- Package exports:
+  - `afpnews-mcp-server` -> MCP runtime entry (`build/index.js`)
+  - `afpnews-mcp-server/definitions` -> pure definitions (`build/definitions.js`)
 
 ## Outils MCP disponibles
 
