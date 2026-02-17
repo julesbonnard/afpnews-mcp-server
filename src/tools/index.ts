@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod';
 import type { ServerContext } from '../server.js';
 import { afpSearchArticlesTool } from './search-articles.js';
 import { afpGetArticleTool } from './get-article.js';
@@ -15,7 +15,7 @@ const RAW_TOOLS = [
 
 export const TOOL_DEFINITIONS = RAW_TOOLS.map((t) => ({
   ...t,
-  inputJsonSchema: zodToJsonSchema(t.inputSchema as any, { target: 'openApi3' }),
+  inputJsonSchema: z.toJSONSchema(t.inputSchema),
 }));
 
 export function registerTools(ctx: ServerContext) {
