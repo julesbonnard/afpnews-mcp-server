@@ -19,9 +19,9 @@ Returns:
 
 Examples:
   - Get a specific article: { uno: "NEWS-FR-123456-ABC" }`,
-  inputSchema: {
+  inputSchema: z.object({
     uno: z.string().describe('The unique identifier (UNO) of the article'),
-  },
+  }),
   handler: async (apicore: ApiCore, { uno }: any) => {
     try {
       const doc = await apicore.get(uno);

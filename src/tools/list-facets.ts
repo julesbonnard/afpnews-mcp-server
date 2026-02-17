@@ -30,12 +30,12 @@ Examples:
   - Trending topics in English: { preset: "trending-topics", lang: "en" }
   - List available genres: { facet: "genre" }
   - List countries: { facet: "country", size: 30 }`,
-  inputSchema: {
+  inputSchema: z.object({
     preset: listPresetEnum.optional().describe('Optional preset for list queries. Available preset: trending-topics.'),
     facet: z.string().optional().describe("Facet to list (e.g. 'slug', 'genre', 'country'). Required when no preset is used."),
     lang: langEnum.optional().describe("Language filter (e.g. 'en', 'fr')"),
     size: z.number().optional().describe('Number of facet values to return'),
-  },
+  }),
   handler: async (apicore: ApiCore, { preset, facet, lang, size }: any) => {
     try {
       const isTrendingTopics = preset === 'trending-topics';

@@ -27,11 +27,11 @@ Returns:
 Examples:
   - Find similar articles in French: { uno: "NEWS-FR-123456-ABC", lang: "fr" }
   - Get 5 similar English articles: { uno: "NEWS-EN-789", lang: "en", size: 5 }`,
-  inputSchema: {
+  inputSchema: z.object({
     uno: z.string().describe('The UNO of the reference article'),
     lang: langEnum.describe("Language for results (e.g. 'en', 'fr')"),
     size: z.number().optional().describe('Number of similar articles to return (default 10)'),
-  },
+  }),
   handler: async (apicore: ApiCore, { uno, lang, size }: any) => {
     try {
       const { documents, count } = await apicore.mlt(uno, lang, size);

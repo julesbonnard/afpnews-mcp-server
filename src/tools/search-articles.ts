@@ -47,7 +47,7 @@ Examples:
   - French front page: { preset: "a-la-une" }
   - Recent photos: { product: ["photo"], lang: ["en"], size: 5 }
   - Page 2 of results: { query: "economy", size: 10, offset: 10 }`,
-  inputSchema: {
+  inputSchema: z.object({
     preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories.'),
     fullText: z.boolean().optional().describe('When true, returns the full article body. Default is false. If omitted and a preset is used, fullText defaults to true.'),
     query: z.string().optional().describe("List of keywords to search for in the news articles (e.g. 'climate change'), in the language specified by the 'lang' parameter. If not specified, the search will be performed in all languages. Do not use keywords in multiple languages."),
@@ -60,7 +60,7 @@ Examples:
     country: z.string().array().optional().describe("Country filter (e.g. 'fra', 'usa')"),
     slug: z.string().array().optional().describe("Topic/slug filter (e.g. 'economy', 'sports')"),
     product: z.enum(['news', 'factcheck', 'photo', 'video', 'multimedia', 'graphic', 'videographic']).array().optional().describe("Content type filter (default ['news', 'factcheck'])"),
-  },
+  }),
   handler: async (
     apicore: ApiCore,
     { preset, fullText = false, query, lang, dateFrom, dateTo, size = DEFAULT_SEARCH_SIZE, sortOrder = 'desc', offset, country, slug, product = ['news', 'factcheck'] }: any,
