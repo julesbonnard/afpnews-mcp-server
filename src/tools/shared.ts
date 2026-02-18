@@ -22,7 +22,7 @@ export const READ_ONLY_ANNOTATIONS = {
 } as const;
 
 export interface FacetResult {
-  key: string;
+  name: string;
   count: number;
 }
 

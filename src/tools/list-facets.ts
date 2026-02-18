@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
 import { textContent, toolError } from '../utils/format.js';
-import { getTopicLabel } from '../utils/topics.js';
-import { DEFAULT_FACET_SIZE } from '../utils/types.js';
 import {
   type FacetResult,
   formatErrorMessage,
@@ -46,12 +44,10 @@ Examples:
       }
 
       const params: Record<string, unknown> = isTrendingTopics
-        ? { langs: [lang ?? 'fr'], product: ['news'], dateFrom: 'now-1d' }
-        : (lang ? { langs: [lang] } : {});
+        ? { langs: [lang ?? 'fr'], product: ['news'], dateFrom: 'now-1d', size: size ?? 10 }
+        : (lang ? { langs: [lang], size: size ?? 10 } : { size: size ?? 10 });
 
-      const resolvedSize = isTrendingTopics ? (size ?? DEFAULT_FACET_SIZE) : size;
-
-      const rawResult = await apicore.list(resolvedFacet, params as any, resolvedSize) as any;
+      const rawResult = await apicore.list(resolvedFacet, params as any, 1) as any;
       const results: FacetResult[] = rawResult?.keywords ?? rawResult ?? [];
 
       if (results.length === 0) {
@@ -60,8 +56,7 @@ Examples:
 
       const heading = isTrendingTopics ? 'Trending Topics' : `Facet: ${resolvedFacet}`;
       const lines = results.map((item) => {
-        const label = isTrendingTopics ? (getTopicLabel(item.key) ?? item.key) : item.key;
-        return `- **${label}** — ${item.count} articles`;
+        return `- **${item.name}** — ${item.count} articles`;
       });
 
       return { content: [textContent(`## ${heading}\n\n${lines.join('\n')}`)] };
