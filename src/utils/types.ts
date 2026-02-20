@@ -1,4 +1,5 @@
 export interface AFPDocument {
+  afpshortid: string;
   uno: string;
   headline: string;
   published: string;

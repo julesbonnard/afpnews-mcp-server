@@ -14,13 +14,14 @@ export const GENRE_EXCLUSIONS = {
   ]
 };
 
-export const DEFAULT_FIELDS = ['uno', 'status', 'signal', 'advisory', 'published', 'headline', 'news', 'lang', 'genre'] as const;
+export const DEFAULT_FIELDS = ['afpshortid', 'uno', 'status', 'signal', 'advisory', 'published', 'headline', 'news', 'lang', 'genre'] as const;
 
 export function formatDocument(doc: unknown, fullText = false): TextContent {
   const d = doc as AFPDocument;
 
   const meta: string[] = [
     `UNO: ${d.uno}`,
+    `SHORT_GUID: ${d.afpshortid}`,
     `Published: ${typeof d.published === 'string' ? d.published : new Date(d.published).toISOString()}`,
     `Lang: ${d.lang}`,
     `Genre: ${d.genre}`,
