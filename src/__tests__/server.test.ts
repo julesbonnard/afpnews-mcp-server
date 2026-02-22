@@ -16,6 +16,10 @@ function createMockApicore() {
   };
 }
 
+function getText(result: any, index = 0): string {
+  return (result.content[index] as { type: string; text: string }).text;
+}
+
 async function setupServer() {
   const server = new McpServer({ name: 'test', version: '0.0.1' });
   const apicore = createMockApicore();
@@ -110,15 +114,66 @@ describe('MCP integration', () => {
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toContain('Network timeout');
     });
+
+    it('returns json with total, shown, offset and documents array', async () => {
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json' } });
+      expect(result.content).toHaveLength(1);
+      const parsed = JSON.parse(getText(result));
+      expect(parsed.total).toBe(3);
+      expect(parsed.shown).toBe(3);
+      expect(parsed.offset).toBe(0);
+      expect(parsed.documents).toHaveLength(3);
+      expect(parsed.documents[0]).toHaveProperty('uno');
+      expect(parsed.documents[0]).toHaveProperty('headline');
+      expect(parsed.documents[0]).not.toHaveProperty('news');
+    });
+
+    it('returns json with only requested fields', async () => {
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json', fields: ['uno', 'headline'] } });
+      const parsed = JSON.parse(getText(result));
+      expect(Object.keys(parsed.documents[0])).toEqual(['uno', 'headline']);
+    });
+
+    it('returns csv with header and data rows', async () => {
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv' } });
+      expect(result.content).toHaveLength(1);
+      const lines = getText(result).split('\n');
+      expect(lines[0]).toBe('uno,headline,lang,genre');
+      expect(lines).toHaveLength(4); // header + 3 docs
+    });
+
+    it('returns csv with custom fields', async () => {
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv', fields: ['uno', 'headline'] } });
+      const lines = getText(result).split('\n');
+      expect(lines[0]).toBe('uno,headline');
+      expect(lines[1]).toContain('AFP-TEST-001');
+      expect(lines[1]).toContain('Article 1');
+    });
   });
 
   describe('afp_get_article tool', () => {
-    it('returns full document with fullText', async () => {
+    it('returns formatted full article with metadata rows and body', async () => {
+      apicore.get.mockResolvedValueOnce(FIXTURE_DOC);
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-001' } });
       expect(result.content).toHaveLength(1);
-      const doc = result.content![0] as { type: string; text: string };
-      expect(doc.type).toBe('text');
-      expect(doc.text).toContain('## Article 1');
+      const text = getText(result);
+      expect(text).toContain('## Test Article Headline');
+      expect(text).toContain('**UNO:** AFP-TEST-001');
+      expect(text).toContain('**Lang:** fr');
+      expect(text).toContain('**Genre:** news');
+      expect(text).toContain('**Status:** Usable');
+      expect(text).toContain('**Signal:** update');
+      expect(text).toContain('**Advisory:** CORRECTION');
+      expect(text).toContain('---');
+      expect(text).toContain('Fifth paragraph is extra content.');
+    });
+
+    it('does not include missing optional fields', async () => {
+      apicore.get.mockResolvedValueOnce({ uno: 'X', headline: 'H', lang: 'fr', genre: 'news', published: '2026-01-01T00:00:00Z', news: ['body'] });
+      const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'X' } });
+      const text = getText(result);
+      expect(text).not.toContain('**Status:**');
+      expect(text).not.toContain('**Country:**');
     });
 
     it('returns isError on API failure', async () => {
@@ -156,6 +211,22 @@ describe('MCP integration', () => {
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toContain('Invalid UNO');
     });
+
+    it('returns json with total and documents array', async () => {
+      const result = await client.callTool({ name: 'afp_find_similar', arguments: { uno: 'AFP-TEST-001', lang: 'fr', format: 'json' } });
+      expect(result.content).toHaveLength(1);
+      const parsed = JSON.parse(getText(result));
+      expect(parsed.total).toBe(2);
+      expect(parsed.documents).toHaveLength(2);
+      expect(parsed.documents[0]).not.toHaveProperty('news');
+    });
+
+    it('returns csv with header and data rows', async () => {
+      const result = await client.callTool({ name: 'afp_find_similar', arguments: { uno: 'AFP-TEST-001', lang: 'fr', format: 'csv' } });
+      const lines = getText(result).split('\n');
+      expect(lines[0]).toBe('uno,headline,lang,genre');
+      expect(lines).toHaveLength(3); // header + 2 docs
+    });
   });
 
   describe('afp_list_facets tool', () => {
@@ -192,6 +263,19 @@ describe('MCP integration', () => {
       expect(result.isError).toBe(true);
       const msg = result.content![0] as { type: string; text: string };
       expect(msg.text).toContain('Service unavailable');
+    });
+
+    it('returns json array of {name, count}', async () => {
+      const result = await client.callTool({ name: 'afp_list_facets', arguments: { facet: 'slug', format: 'json' } });
+      expect(result.content).toHaveLength(1);
+      const parsed = JSON.parse(getText(result));
+      expect(parsed).toEqual([{ name: 'economy', count: 42 }]);
+    });
+
+    it('returns csv with name,count rows', async () => {
+      const result = await client.callTool({ name: 'afp_list_facets', arguments: { facet: 'slug', format: 'csv' } });
+      const text = getText(result);
+      expect(text).toBe('name,count\neconomy,42');
     });
   });
 

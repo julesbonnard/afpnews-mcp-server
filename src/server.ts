@@ -33,7 +33,7 @@ export async function createServer({
 
   const server = new McpServer({
     name: "afpnews",
-    version: "1.3.8",
+    version: "1.3.9",
   });
 
   const ctx = { server, apicore };

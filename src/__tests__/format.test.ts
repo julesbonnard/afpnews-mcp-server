@@ -7,7 +7,6 @@ describe('formatDocument', () => {
     const result = formatDocument(FIXTURE_DOC);
     expect(result).toHaveProperty('type', 'text');
     expect(typeof result.text).toBe('string');
-    // Should NOT have extra properties like uno, lang, etc.
     expect(Object.keys(result)).toEqual(['type', 'text']);
   });
 
@@ -16,12 +15,13 @@ describe('formatDocument', () => {
     expect(result.text).toContain('## Test Article Headline');
   });
 
-  it('includes metadata line with UNO, Published, Lang, Genre', () => {
+  it('includes metadata line with UNO, Lang, Genre (no Published, no Short ID)', () => {
     const result = formatDocument(FIXTURE_DOC);
     expect(result.text).toContain('UNO: AFP-TEST-001');
-    expect(result.text).toContain('Published: 2026-02-14T10:30:00Z');
     expect(result.text).toContain('Lang: fr');
     expect(result.text).toContain('Genre: news');
+    expect(result.text).not.toContain('Published:');
+    expect(result.text).not.toContain('SHORT_GUID:');
   });
 
   it('includes optional metadata (status, signal, advisory) when present', () => {
@@ -48,20 +48,19 @@ describe('formatDocument', () => {
     const result = formatDocument(FIXTURE_DOC, true);
     expect(result.text).toContain('Fifth paragraph is extra content.');
   });
-
-  it('preserves ISO date string as-is', () => {
-    const result = formatDocument(FIXTURE_DOC);
-    expect(result.text).toContain('Published: 2026-02-14T10:30:00Z');
-  });
 });
 
 describe('DEFAULT_FIELDS', () => {
   it('contains expected fields', () => {
     expect(DEFAULT_FIELDS).toContain('uno');
     expect(DEFAULT_FIELDS).toContain('headline');
-    expect(DEFAULT_FIELDS).toContain('published');
     expect(DEFAULT_FIELDS).toContain('news');
     expect(DEFAULT_FIELDS).toContain('lang');
     expect(DEFAULT_FIELDS).toContain('genre');
+  });
+
+  it('does not contain published or afpshortid (derivable from UNO)', () => {
+    expect(DEFAULT_FIELDS).not.toContain('published');
+    expect(DEFAULT_FIELDS).not.toContain('afpshortid');
   });
 });

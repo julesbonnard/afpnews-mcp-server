@@ -4,6 +4,23 @@ import {
   GENRE_EXCLUSIONS,
 } from '../utils/format.js';
 import type { TextContent } from '../utils/types.js';
+import { ALL_DOC_FIELDS, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+
+export { ALL_DOC_FIELDS, DEFAULT_OUTPUT_FIELDS };
+
+// UNO format: newsml.afp.com.20260222T090659Z.doc-98hu39e
+//   - timestamp: 20260222T090659Z → 2026-02-22 09:06:59 UTC
+//   - afpshortid: the segment after "doc-" (e.g. 98hu39e)
+// Published date and afpshortid are encoded in the UNO — no need to fetch them as separate fields.
+export const UNO_FORMAT_NOTE = `Note on the UNO identifier (e.g. newsml.afp.com.20260222T090659Z.doc-98hu39e):
+  - Publication date: the timestamp segment, e.g. 20260222T090659Z → 2026-02-22 09:06:59 UTC
+  - Short ID (afpshortid): the segment after "doc-", e.g. 98hu39e
+  Both are embedded in the UNO — request afpshortid or published as explicit fields only if needed.`;
+
+export const outputFormatEnum = z.enum(['markdown', 'json', 'csv']);
+export type OutputFormat = z.infer<typeof outputFormatEnum>;
+
+export const docFieldEnum = z.enum(ALL_DOC_FIELDS);
 
 const SEARCH_PRESET_VALUES = ['a-la-une', 'agenda', 'previsions', 'major-stories'] as const;
 export const searchPresetEnum = z.enum(SEARCH_PRESET_VALUES);

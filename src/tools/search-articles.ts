@@ -3,6 +3,8 @@ import type { ApiCore } from 'afpnews-api';
 import {
   DEFAULT_FIELDS,
   GENRE_EXCLUSIONS,
+  formatDocumentsAsJson,
+  formatDocumentsAsCsv,
   textContent,
   toolError,
   truncateIfNeeded,
@@ -16,6 +18,10 @@ import {
   formatDocuments,
   langEnum,
   searchPresetEnum,
+  outputFormatEnum,
+  docFieldEnum,
+  DEFAULT_OUTPUT_FIELDS,
+  UNO_FORMAT_NOTE,
 } from './shared.js';
 
 export const afpSearchArticlesTool = {
@@ -23,9 +29,14 @@ export const afpSearchArticlesTool = {
   title: 'Search AFP News Articles',
   description: `Search AFP news articles with filters and presets. This is the primary query tool for all AFP news search use cases.
 
+${UNO_FORMAT_NOTE}
+
 Args:
   - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)
-  - fullText: Return full article body (true) or excerpt only (false, default). Presets override to true.
+  - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
+  - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
+            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, product, revision, created.
+  - fullText: Return full article body (true) or excerpt only (false, default). Only applies to markdown. Presets override to true.
   - query: Search keywords in the language specified by 'lang' (e.g. 'climate change')
   - lang: Article language filter (e.g. ['en', 'fr']). Use ['en'] for photos.
   - dateFrom/dateTo: Date range in ISO format (e.g. '2025-01-01') or relative ('now-1d')
@@ -37,19 +48,19 @@ Args:
   - product: Content type filter (default ['news', 'factcheck'])
 
 Returns:
-  Pagination summary line, followed by markdown-formatted articles:
-  - ## Headline
-  - *UNO | Published date | Lang | Genre*
-  - Article body (excerpt or full text)
+  - markdown: Pagination summary line + formatted articles with headline, metadata, body
+  - json: { total, shown, offset, documents: [...] } with selected fields
+  - csv: Header row + data rows with selected fields
 
 Examples:
   - Latest Ukraine news: { query: "Ukraine", lang: ["en"], size: 5 }
   - French front page: { preset: "a-la-une" }
-  - Recent photos: { product: ["photo"], lang: ["en"], size: 5 }
-  - Page 2 of results: { query: "economy", size: 10, offset: 10 }`,
+  - Export metadata as CSV: { query: "economy", format: "csv", fields: ["uno", "headline", "country"] }`,
   inputSchema: z.object({
     preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories.'),
-    fullText: z.boolean().optional().describe('When true, returns the full article body. Default is false. If omitted and a preset is used, fullText defaults to true.'),
+    format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
+    fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: afpshortid, uno, headline, published, lang, genre.'),
+    fullText: z.boolean().optional().describe('When true, returns the full article body (markdown only). Default is false. Presets override to true.'),
     query: z.string().optional().describe("List of keywords to search for in the news articles (e.g. 'climate change'), in the language specified by the 'lang' parameter. If not specified, the search will be performed in all languages. Do not use keywords in multiple languages."),
     lang: langEnum.array().optional().describe("Language of the news articles (e.g. 'en', 'fr'). Always use 'en' if you look for photos."),
     dateFrom: z.string().optional().describe("Start date for the search in ISO format (e.g. '2023-01-01') or relative (e.g. 'now-1d')"),
@@ -63,7 +74,7 @@ Examples:
   }),
   handler: async (
     apicore: ApiCore,
-    { preset, fullText = false, query, lang, dateFrom, dateTo, size = DEFAULT_SEARCH_SIZE, sortOrder = 'desc', offset, country, slug, product = ['news', 'factcheck'] }: any,
+    { preset, format = 'markdown', fields, fullText = false, query, lang, dateFrom, dateTo, size = DEFAULT_SEARCH_SIZE, sortOrder = 'desc', offset, country, slug, product = ['news', 'factcheck'] }: any,
   ) => {
     try {
       let request: Record<string, unknown> = {
@@ -85,12 +96,26 @@ Examples:
         fullText = true;
       }
 
-      const { documents, count } = await apicore.search(request as any, [...DEFAULT_FIELDS]);
+      const outputFields: string[] = fields ?? DEFAULT_OUTPUT_FIELDS;
+      const apiFields = format === 'markdown'
+        ? [...DEFAULT_FIELDS]
+        : [...new Set(['afpshortid', 'uno', ...outputFields])];
+
+      const { documents, count } = await apicore.search(request as any, apiFields);
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
       const currentOffset = offset ?? 0;
+
+      if (format === 'json') {
+        return { content: [formatDocumentsAsJson(documents, outputFields, { total: count, shown: documents.length, offset: currentOffset })] };
+      }
+
+      if (format === 'csv') {
+        return { content: [formatDocumentsAsCsv(documents, outputFields)] };
+      }
+
       const content: TextContent[] = [
         textContent(buildPaginationLine(documents.length, count, currentOffset)),
         ...formatDocuments(documents, fullText),
