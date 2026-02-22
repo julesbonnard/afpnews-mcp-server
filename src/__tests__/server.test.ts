@@ -12,7 +12,7 @@ function createMockApicore() {
     search: vi.fn().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
     get: vi.fn().mockResolvedValue(makeDocs(1)[0]),
     mlt: vi.fn().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
-    list: vi.fn().mockResolvedValue([{ key: 'economy', count: 42 }]),
+    list: vi.fn().mockResolvedValue([{ name: 'economy', count: 42 }]),
   };
 }
 
@@ -181,10 +181,9 @@ describe('MCP integration', () => {
       expect(msg.text).toContain('## Trending Topics');
       expect(msg.text).toContain('42 articles');
 
-      const [facet, params, limit] = apicore.list.mock.calls.at(-1)!;
+      const [facet, params] = apicore.list.mock.calls.at(-1)!;
       expect(facet).toBe('slug');
       expect(params).toMatchObject({ langs: ['fr'], product: ['news'], dateFrom: 'now-1d' });
-      expect(limit).toBe(20);
     });
 
     it('returns isError on API failure', async () => {

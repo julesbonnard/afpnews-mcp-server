@@ -36,7 +36,7 @@ vi.mock('../prompts/index.js', () => ({ registerPrompts: registerPromptsMock }))
 
 import { createServer } from '../server.js';
 
-describe('createServer auth configuration', () => {
+describe('createServer', () => {
   beforeEach(() => {
     authenticateMock.mockReset();
     authenticateMock.mockResolvedValue(undefined);
@@ -46,17 +46,29 @@ describe('createServer auth configuration', () => {
     apiCoreInstances.length = 0;
   });
 
-  it('uses credentials and authenticates when apiKey is provided', async () => {
-    await createServer('api-key', 'user', 'pass');
+  it('authenticates with provided credentials', async () => {
+    await createServer({ apiKey: 'api-key', username: 'user', password: 'pass' });
 
     expect(apiCoreInstances).toHaveLength(1);
     expect(apiCoreInstances[0].config).toEqual({ apiKey: 'api-key' });
     expect(authenticateMock).toHaveBeenCalledWith({ username: 'user', password: 'pass' });
   });
 
+  it('passes baseUrl to ApiCore when provided', async () => {
+    await createServer({ apiKey: 'api-key', username: 'user', password: 'pass', baseUrl: 'https://custom.api.com' });
+
+    expect(apiCoreInstances[0].config).toEqual({ apiKey: 'api-key', baseUrl: 'https://custom.api.com' });
+  });
+
+  it('does not set baseUrl on ApiCore when omitted', async () => {
+    await createServer({ apiKey: 'api-key', username: 'user', password: 'pass' });
+
+    expect(apiCoreInstances[0].config).not.toHaveProperty('baseUrl');
+  });
+
   it('throws on missing credentials', async () => {
-    await expect(createServer('api-key', 'user')).rejects.toThrow(
-      'Missing authentication configuration',
-    );
+    await expect(
+      createServer({ apiKey: 'api-key', username: 'user', password: '' }),
+    ).rejects.toThrow('Missing authentication configuration');
   });
 });
