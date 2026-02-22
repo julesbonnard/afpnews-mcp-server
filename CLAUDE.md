@@ -62,6 +62,7 @@ src/
 
 Required in `.env` (loaded by dotenv):
 - `APICORE_API_KEY` — AFP API key
+- `APICORE_BASE_URL` — AFP API base URL (optional, overrides default)
 - `APICORE_USERNAME` — AFP account username (stdio mode only)
 - `APICORE_PASSWORD` — AFP account password (stdio mode only)
 - `MCP_TRANSPORT` — `http` to start the HTTP server (default: stdio)

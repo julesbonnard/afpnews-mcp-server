@@ -16,12 +16,13 @@ function decodeBasicAuth(header: string): { username: string; password: string }
   };
 }
 
-type StdioAuthConfig = { apiKey: string; username: string; password: string };
+type StdioAuthConfig = { apiKey: string; username: string; password: string; baseUrl?: string };
 
 export function resolveStdioAuthConfig(env: NodeJS.ProcessEnv = process.env): StdioAuthConfig {
   const apiKey = env.APICORE_API_KEY?.trim();
   const username = env.APICORE_USERNAME?.trim();
   const password = env.APICORE_PASSWORD?.trim();
+  const baseUrl = env.APICORE_BASE_URL?.trim();
 
   if (!apiKey || !username || !password) {
     throw new Error(
@@ -29,7 +30,7 @@ export function resolveStdioAuthConfig(env: NodeJS.ProcessEnv = process.env): St
     );
   }
 
-  return { apiKey, username, password };
+  return { apiKey, username, password, baseUrl };
 }
 
 async function startHttpServer() {
@@ -39,6 +40,8 @@ async function startHttpServer() {
   if (!apiKey) {
     throw new Error('APICORE_API_KEY environment variable is required');
   }
+
+  const baseUrl = process.env.APICORE_BASE_URL?.trim();
 
   const app = express();
 
@@ -75,7 +78,7 @@ async function startHttpServer() {
       sessionIdGenerator: () => crypto.randomUUID(),
     });
 
-    const server = await createServer(apiKey, credentials.username, credentials.password);
+    const server = await createServer({ apiKey, username: credentials.username, password: credentials.password, baseUrl });
     await server.connect(transport);
 
     transport.onclose = () => {
@@ -103,7 +106,7 @@ async function startHttpServer() {
 
 async function startStdioServer() {
   const authConfig = resolveStdioAuthConfig();
-  const server = await createServer(authConfig.apiKey, authConfig.username, authConfig.password);
+  const server = await createServer(authConfig);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('MCP stdio server started');

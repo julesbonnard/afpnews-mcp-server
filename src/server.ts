@@ -9,28 +9,31 @@ export interface ServerContext {
   apicore: ApiCore;
 }
 
-export async function createServer(
-  apiKey: string,
-  username: string,
-  password: string,
-): Promise<McpServer>;
-export async function createServer(
-  apiKey: string,
-  username?: string,
-  password?: string,
-): Promise<McpServer> {
+export interface CreateServerOptions {
+  apiKey: string;
+  username: string;
+  password: string;
+  baseUrl?: string;
+}
+
+export async function createServer({
+  apiKey,
+  username,
+  password,
+  baseUrl,
+}: CreateServerOptions): Promise<McpServer> {
   if (!apiKey || !username || !password) {
     throw new Error(
       "Missing authentication configuration. Provide APICORE_API_KEY, APICORE_USERNAME and APICORE_PASSWORD.",
     );
   }
 
-  const apicore = new ApiCore({ apiKey });
+  const apicore = new ApiCore({ ...(baseUrl ? { baseUrl } : {}), apiKey });
   await apicore.authenticate({ username, password });
 
   const server = new McpServer({
     name: "afpnews",
-    version: "1.2.0",
+    version: "1.3.8",
   });
 
   const ctx = { server, apicore };
