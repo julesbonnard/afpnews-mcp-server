@@ -123,18 +123,3 @@ export const TOPICS: Record<string, Topic[]> = {
   ],
 };
 
-export function getTopicLabel(value: string): string | undefined {
-  for (const topics of Object.values(TOPICS)) {
-    const topic = topics.find(t => t.value === value);
-    if (topic) return topic.label;
-  }
-  return undefined;
-}
-
-export function formatTopicList(): string {
-  return Object.entries(TOPICS)
-    .map(([lang, topics]) =>
-      `${lang}: ${topics.map(t => `${t.label} (${t.value})`).join(', ')}`
-    )
-    .join('\n');
-}

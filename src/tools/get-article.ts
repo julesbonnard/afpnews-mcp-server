@@ -3,6 +3,12 @@ import type { ApiCore } from 'afpnews-api';
 import { formatFullArticle, toolError } from '../utils/format.js';
 import { formatErrorMessage, UNO_FORMAT_NOTE } from './shared.js';
 
+const inputSchema = z.object({
+  uno: z.string().describe('The unique UNO identifier of the article'),
+});
+
+type GetArticleInput = z.infer<typeof inputSchema>;
+
 export const afpGetArticleTool = {
   name: 'afp_get_article',
   title: 'Get AFP Article',
@@ -32,10 +38,8 @@ Returns:
 
 Example:
   { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e" }`,
-  inputSchema: z.object({
-    uno: z.string().describe('The unique UNO identifier of the article'),
-  }),
-  handler: async (apicore: ApiCore, { uno }: any) => {
+  inputSchema,
+  handler: async (apicore: ApiCore, { uno }: GetArticleInput) => {
     try {
       const doc = await apicore.get(uno);
       return { content: [formatFullArticle(doc)] };

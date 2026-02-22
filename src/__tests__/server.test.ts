@@ -99,6 +99,43 @@ describe('MCP integration', () => {
       expect(request.size).toBe(1);
     });
 
+    it('passes genre facet to API query', async () => {
+      await client.callTool({
+        name: 'afp_search_articles',
+        arguments: { query: 'title:Trump', facets: { genre: 'Papier général' } },
+      });
+      const [request] = apicore.search.mock.calls.at(-1)!;
+      expect(request.genre).toBe('Papier général');
+    });
+
+    it('passes additional facet filters to API query', async () => {
+      await client.callTool({
+        name: 'afp_search_articles',
+        arguments: {
+          query: 'climate',
+          facets: {
+            urgency: 1,
+            genreid: { in: ['afpattribute:Article'] },
+          },
+        },
+      });
+      const [request] = apicore.search.mock.calls.at(-1)!;
+      expect(request.urgency).toBe(1);
+      expect(request.genreid).toEqual({ in: ['afpattribute:Article'] });
+    });
+
+    it('rejects unknown top-level facet filters', async () => {
+      const result = await client.callTool({
+        name: 'afp_search_articles',
+        arguments: {
+          query: 'climate',
+          urgency: 2,
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(apicore.search).not.toHaveBeenCalled();
+    });
+
     it('shows pagination info when there are more results', async () => {
       apicore.search.mockResolvedValueOnce({ documents: makeDocs(3), count: 10 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
@@ -148,6 +185,38 @@ describe('MCP integration', () => {
       expect(lines[0]).toBe('uno,headline');
       expect(lines[1]).toContain('AFP-TEST-001');
       expect(lines[1]).toContain('Article 1');
+    });
+
+    it('truncates json when exceeding character limit', async () => {
+      const largeDocs = makeDocs(400);
+      apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 400 });
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json' } });
+      const parsed = JSON.parse(getText(result));
+      expect(parsed.truncated).toBe(true);
+      expect(parsed.shown).toBeLessThan(400);
+      expect(parsed.total).toBe(400);
+      // Should have a truncation hint as second content block
+      expect(result.content).toHaveLength(2);
+      expect(getText(result, 1)).toContain('truncated');
+    });
+
+    it('truncates csv when exceeding character limit', async () => {
+      const largeDocs = makeDocs(800);
+      apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 800 });
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv' } });
+      const lines = getText(result).split('\n');
+      // header + fewer than 800 data rows
+      expect(lines.length).toBeLessThan(801);
+      expect(lines.length).toBeGreaterThan(1);
+      // Should have a truncation hint as second content block
+      expect(result.content).toHaveLength(2);
+      expect(getText(result, 1)).toContain('truncated');
+    });
+
+    it('json shown field matches actual documents in output', async () => {
+      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json' } });
+      const parsed = JSON.parse(getText(result));
+      expect(parsed.shown).toBe(parsed.documents.length);
     });
   });
 

@@ -1,12 +1,5 @@
 import { z } from 'zod';
-import {
-  formatDocument,
-  GENRE_EXCLUSIONS,
-} from '../utils/format.js';
-import type { TextContent } from '../utils/types.js';
-import { ALL_DOC_FIELDS, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
-
-export { ALL_DOC_FIELDS, DEFAULT_OUTPUT_FIELDS };
+import { ALL_DOC_FIELDS } from '../utils/types.js';
 
 // UNO format: newsml.afp.com.20260222T090659Z.doc-98hu39e
 //   - timestamp: 20260222T090659Z → 2026-02-22 09:06:59 UTC
@@ -42,6 +35,19 @@ export interface FacetResult {
   name: string;
   count: number;
 }
+
+export const GENRE_EXCLUSIONS = {
+  exclude: [
+    'afpgenre:Agenda',
+    'afpattribute:Agenda',
+    'afpattribute:Program',
+    'afpattribute:TextProgram',
+    'afpattribute:AdvisoryUpdate',
+    'afpattribute:Advice',
+    'afpattribute:SpecialAnnouncement',
+    'afpattribute:PictureProgram',
+  ],
+};
 
 interface PresetOverrides {
   product?: string[];
@@ -80,8 +86,4 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
 export function formatErrorMessage(context: string, error: unknown, hint: string): string {
   const message = error instanceof Error ? error.message : String(error);
   return `Error ${context}: ${message}. ${hint}`;
-}
-
-export function formatDocuments(documents: unknown[], fullText: boolean): TextContent[] {
-  return documents.map((doc) => formatDocument(doc, fullText));
 }

@@ -8,15 +8,13 @@ export const countryNewsPrompt = {
     country: z.string().describe("Country code (e.g. 'fra', 'usa', 'gbr')"),
     lang: z.string().optional().describe("Language (e.g. 'en', 'fr'). Default: 'fr'"),
   },
-  handler: async ({ country, lang = 'fr' }: any) => {
-    return {
-      messages: [{
-        role: 'user' as const,
-        content: {
-          type: 'text' as const,
-          text: `Use afp_search_articles to find recent news for country "${country}" (lang: ["${lang}"], country: ["${country}"], size: 15). Write a news summary for this country covering the main stories of the day.`,
-        },
-      }],
-    };
-  },
+  handler: async ({ country, lang = 'fr' }: { country: string; lang?: string }) => ({
+    messages: [{
+      role: 'user' as const,
+      content: {
+        type: 'text' as const,
+        text: `Use afp_search_articles to find recent news for country "${country}" (facets: { lang: ["${lang}"], country: ["${country}"] }, size: 15). Write a news summary for this country covering the main stories of the day.`,
+      },
+    }],
+  }),
 };

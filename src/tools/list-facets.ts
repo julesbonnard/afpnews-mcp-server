@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
-import { textContent, toolError } from '../utils/format.js';
+import { escapeCsvValue, textContent, toolError, truncateToLimit, TRUNCATION_HINT } from '../utils/format.js';
 import {
   type FacetResult,
   formatErrorMessage,
@@ -8,6 +8,16 @@ import {
   listPresetEnum,
   outputFormatEnum,
 } from './shared.js';
+
+const inputSchema = z.object({
+  preset: listPresetEnum.optional().describe('Optional preset for list queries. Available preset: trending-topics.'),
+  facet: z.string().optional().describe("Facet to list (e.g. 'slug', 'genre', 'country'). Required when no preset is used."),
+  lang: langEnum.optional().describe("Language filter (e.g. 'en', 'fr')"),
+  size: z.number().optional().describe('Number of facet values to return'),
+  format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv.'),
+});
+
+type ListFacetsInput = z.infer<typeof inputSchema>;
 
 export const afpListFacetsTool = {
   name: 'afp_list_facets',
@@ -31,14 +41,8 @@ Examples:
   - Trending topics in English: { preset: "trending-topics", lang: "en" }
   - List available genres as CSV: { facet: "genre", format: "csv" }
   - List countries as JSON: { facet: "country", size: 30, format: "json" }`,
-  inputSchema: z.object({
-    preset: listPresetEnum.optional().describe('Optional preset for list queries. Available preset: trending-topics.'),
-    facet: z.string().optional().describe("Facet to list (e.g. 'slug', 'genre', 'country'). Required when no preset is used."),
-    lang: langEnum.optional().describe("Language filter (e.g. 'en', 'fr')"),
-    size: z.number().optional().describe('Number of facet values to return'),
-    format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv.'),
-  }),
-  handler: async (apicore: ApiCore, { preset, facet, lang, size, format = 'markdown' }: any) => {
+  inputSchema,
+  handler: async (apicore: ApiCore, { preset, facet, lang, size, format = 'markdown' }: ListFacetsInput) => {
     try {
       const isTrendingTopics = preset === 'trending-topics';
       const resolvedFacet = isTrendingTopics ? 'slug' : facet;
@@ -47,9 +51,10 @@ Examples:
         return toolError("Missing required parameter: facet (e.g. 'slug', 'genre', 'country'). Alternatively, use preset: 'trending-topics'.");
       }
 
+      const resolvedSize = size ?? 10;
       const params: Record<string, unknown> = isTrendingTopics
-        ? { langs: [lang ?? 'fr'], product: ['news'], dateFrom: 'now-1d', size: size ?? 10 }
-        : (lang ? { langs: [lang], size: size ?? 10 } : { size: size ?? 10 });
+        ? { langs: [lang ?? 'fr'], product: ['news'], dateFrom: 'now-1d', size: resolvedSize }
+        : { ...(lang ? { langs: [lang] } : {}), size: resolvedSize };
 
       const rawResult = await apicore.list(resolvedFacet, params as any, 1) as any;
       const results: FacetResult[] = rawResult?.keywords ?? rawResult ?? [];
@@ -59,15 +64,24 @@ Examples:
       }
 
       if (format === 'json') {
-        return { content: [textContent(JSON.stringify(results, null, 2))] };
+        const { text, truncated } = truncateToLimit(
+          results,
+          (slice) => JSON.stringify(slice, null, 2),
+        );
+        const content = [textContent(text)];
+        if (truncated) content.push(textContent(TRUNCATION_HINT));
+        return { content };
       }
 
       if (format === 'csv') {
-        const rows = results.map(r => {
-          const name = /[",\n\r]/.test(r.name) ? `"${r.name.replaceAll('"', '""')}"` : r.name;
-          return `${name},${r.count}`;
-        });
-        return { content: [textContent(['name,count', ...rows].join('\n'))] };
+        const rows = results.map(r => `${escapeCsvValue(r.name)},${r.count}`);
+        const { text, truncated } = truncateToLimit(
+          rows,
+          (slice) => ['name,count', ...slice].join('\n'),
+        );
+        const content = [textContent(text)];
+        if (truncated) content.push(textContent(TRUNCATION_HINT));
+        return { content };
       }
 
       const heading = isTrendingTopics ? 'Trending Topics' : `Facet: ${resolvedFacet}`;

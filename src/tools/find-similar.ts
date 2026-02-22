@@ -1,22 +1,24 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
+import { textContent, toolError, formatDocumentOutput } from '../utils/format.js';
+import { DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
 import {
-  formatDocumentsAsJson,
-  formatDocumentsAsCsv,
-  textContent,
-  toolError,
-  truncateIfNeeded,
-} from '../utils/format.js';
-import type { TextContent } from '../utils/types.js';
-import {
-  formatDocuments,
   formatErrorMessage,
   langEnum,
   outputFormatEnum,
   docFieldEnum,
-  DEFAULT_OUTPUT_FIELDS,
   UNO_FORMAT_NOTE,
 } from './shared.js';
+
+const inputSchema = z.object({
+  uno: z.string().describe('The UNO of the reference article'),
+  lang: langEnum.describe("Language for results (e.g. 'en', 'fr')"),
+  size: z.number().optional().describe('Number of similar articles to return (default 10)'),
+  format: outputFormatEnum.optional().describe('Output format: markdown (default, with article excerpt), json (structured, no body), csv (tabular, no body).'),
+  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: afpshortid, uno, headline, published, lang, genre.'),
+});
+
+type FindSimilarInput = z.infer<typeof inputSchema>;
 
 export const afpFindSimilarTool = {
   name: 'afp_find_similar',
@@ -41,35 +43,19 @@ Returns:
 Examples:
   - Find similar articles in French: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "fr" }
   - Export similar as CSV: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "en", format: "csv", fields: ["uno", "headline"] }`,
-  inputSchema: z.object({
-    uno: z.string().describe('The UNO of the reference article'),
-    lang: langEnum.describe("Language for results (e.g. 'en', 'fr')"),
-    size: z.number().optional().describe('Number of similar articles to return (default 10)'),
-    format: outputFormatEnum.optional().describe('Output format: markdown (default, with article excerpt), json (structured, no body), csv (tabular, no body).'),
-    fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: afpshortid, uno, headline, published, lang, genre.'),
-  }),
-  handler: async (apicore: ApiCore, { uno, lang, size, format = 'markdown', fields }: any) => {
+  inputSchema,
+  handler: async (apicore: ApiCore, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
     try {
       const { documents, count } = await apicore.mlt(uno, lang, size);
       if (count === 0) {
         return { content: [textContent('No similar articles found.')] };
       }
 
-      const outputFields: string[] = fields ?? DEFAULT_OUTPUT_FIELDS;
-
-      if (format === 'json') {
-        return { content: [formatDocumentsAsJson(documents, outputFields, { total: count })] };
-      }
-
-      if (format === 'csv') {
-        return { content: [formatDocumentsAsCsv(documents, outputFields)] };
-      }
-
-      const content: TextContent[] = [
-        textContent(`*Found ${count} similar articles.*`),
-        ...formatDocuments(documents, false),
-      ];
-      return { content: truncateIfNeeded(content) };
+      return formatDocumentOutput(documents, format, {
+        fields: fields ?? [...DEFAULT_OUTPUT_FIELDS],
+        jsonMeta: { total: count },
+        markdownPrefix: [textContent(`*Found ${count} similar articles.*`)],
+      });
     } catch (error) {
       return toolError(formatErrorMessage(`finding similar articles for "${uno}"`, error, 'Verify the UNO identifier is correct.'));
     }

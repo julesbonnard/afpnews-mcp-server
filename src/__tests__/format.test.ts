@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDocument, DEFAULT_FIELDS } from '../utils/format.js';
+import { formatDocument, MARKDOWN_API_FIELDS } from '../utils/format.js';
 import { FIXTURE_DOC, FIXTURE_DOC_MINIMAL } from './fixtures.js';
 
 describe('formatDocument', () => {
@@ -50,17 +50,17 @@ describe('formatDocument', () => {
   });
 });
 
-describe('DEFAULT_FIELDS', () => {
+describe('MARKDOWN_API_FIELDS', () => {
   it('contains expected fields', () => {
-    expect(DEFAULT_FIELDS).toContain('uno');
-    expect(DEFAULT_FIELDS).toContain('headline');
-    expect(DEFAULT_FIELDS).toContain('news');
-    expect(DEFAULT_FIELDS).toContain('lang');
-    expect(DEFAULT_FIELDS).toContain('genre');
+    expect(MARKDOWN_API_FIELDS).toContain('uno');
+    expect(MARKDOWN_API_FIELDS).toContain('headline');
+    expect(MARKDOWN_API_FIELDS).toContain('news');
+    expect(MARKDOWN_API_FIELDS).toContain('lang');
+    expect(MARKDOWN_API_FIELDS).toContain('genre');
   });
 
   it('does not contain published or afpshortid (derivable from UNO)', () => {
-    expect(DEFAULT_FIELDS).not.toContain('published');
-    expect(DEFAULT_FIELDS).not.toContain('afpshortid');
+    expect(MARKDOWN_API_FIELDS).not.toContain('published');
+    expect(MARKDOWN_API_FIELDS).not.toContain('afpshortid');
   });
 });

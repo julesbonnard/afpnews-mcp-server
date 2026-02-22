@@ -1,5 +1,5 @@
 export interface AFPDocument {
-  afpshortid: string;
+  afpshortid?: string;
   uno: string;
   headline: string;
   published: string;
@@ -22,8 +22,6 @@ export interface TextContent {
   text: string;
 }
 
-export type FormattedContent = TextContent;
-
 export interface ToolSuccess {
   content: TextContent[];
 }
@@ -38,7 +36,6 @@ export type ToolResult = ToolSuccess | ToolError;
 export const EXCERPT_PARAGRAPH_COUNT = 4;
 export const CHARACTER_LIMIT = 25_000;
 export const DEFAULT_SEARCH_SIZE = 10;
-export const DEFAULT_FACET_SIZE = 20;
 
 export const ALL_DOC_FIELDS = [
   'afpshortid', 'uno', 'headline', 'published', 'lang', 'genre',

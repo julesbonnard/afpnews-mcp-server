@@ -1,7 +1,12 @@
 import type { AFPDocument, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
 
-function escapeCsvValue(value: unknown): string {
+export const TRUNCATION_HINT = `\n\n---\n*Response truncated (exceeded ${CHARACTER_LIMIT} characters). Use a smaller \`size\` or add filters to reduce results.*`;
+
+/** Fields requested from the API when rendering markdown output. */
+export const MARKDOWN_API_FIELDS = ['uno', 'status', 'signal', 'advisory', 'headline', 'news', 'lang', 'genre'] as const;
+
+export function escapeCsvValue(value: unknown): string {
   const str = Array.isArray(value) ? value.join('|') : String(value ?? '');
   if (/[",\n\r]/.test(str)) return `"${str.replaceAll('"', '""')}"`;
   return str;
@@ -12,36 +17,72 @@ export function pickDocFields(doc: unknown, fields: string[]): Record<string, un
   return Object.fromEntries(fields.map(f => [f, d[f] ?? null]));
 }
 
+/**
+ * Truncate an array of items so the serialized output fits within CHARACTER_LIMIT.
+ * Uses binary search O(log n) when truncation is needed.
+ */
+export function truncateToLimit<T>(
+  items: T[],
+  serialize: (slice: T[]) => string,
+): { text: string; count: number; truncated: boolean } {
+  const full = serialize(items);
+  if (full.length <= CHARACTER_LIMIT) {
+    return { text: full, count: items.length, truncated: false };
+  }
+
+  let lo = 0;
+  let hi = items.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (serialize(items.slice(0, mid)).length <= CHARACTER_LIMIT) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  return { text: serialize(items.slice(0, lo)), count: lo, truncated: true };
+}
+
+function formatDocumentsAsJsonInner(
+  docs: unknown[],
+  fields: string[],
+  meta: Record<string, unknown> = {},
+): { content: TextContent; truncated: boolean } {
+  const documents = docs.map(doc => pickDocFields(doc, fields));
+  const { text, count, truncated } = truncateToLimit(
+    documents,
+    (slice) => JSON.stringify({ ...meta, shown: slice.length, truncated: slice.length < documents.length, documents: slice }, null, 2),
+  );
+  return { content: textContent(text), truncated };
+}
+
+function formatDocumentsAsCsvInner(
+  docs: unknown[],
+  fields: string[],
+): { content: TextContent; truncated: boolean } {
+  const rows = (docs as Record<string, unknown>[]).map(doc =>
+    fields.map(f => escapeCsvValue(doc[f])).join(','),
+  );
+  const header = fields.join(',');
+  const { text, truncated } = truncateToLimit(
+    rows,
+    (slice) => [header, ...slice].join('\n'),
+  );
+  return { content: textContent(text), truncated };
+}
+
 export function formatDocumentsAsJson(
   docs: unknown[],
   fields: string[],
   meta: Record<string, unknown> = {},
 ): TextContent {
-  const documents = docs.map(doc => pickDocFields(doc, fields));
-  return textContent(JSON.stringify({ ...meta, documents }, null, 2));
+  return formatDocumentsAsJsonInner(docs, fields, meta).content;
 }
 
 export function formatDocumentsAsCsv(docs: unknown[], fields: string[]): TextContent {
-  const rows = (docs as Record<string, unknown>[]).map(doc =>
-    fields.map(f => escapeCsvValue(doc[f])).join(','),
-  );
-  return textContent([fields.join(','), ...rows].join('\n'));
+  return formatDocumentsAsCsvInner(docs, fields).content;
 }
-
-export const GENRE_EXCLUSIONS = {
-  exclude: [
-    'afpgenre:Agenda',
-    'afpattribute:Agenda',
-    'afpattribute:Program',
-    'afpattribute:TextProgram',
-    'afpattribute:AdvisoryUpdate',
-    'afpattribute:Advice',
-    'afpattribute:SpecialAnnouncement',
-    'afpattribute:PictureProgram'
-  ]
-};
-
-export const DEFAULT_FIELDS = ['uno', 'status', 'signal', 'advisory', 'headline', 'news', 'lang', 'genre'] as const;
 
 export function formatDocument(doc: unknown, fullText = false): TextContent {
   const d = doc as AFPDocument;
@@ -60,9 +101,7 @@ export function formatDocument(doc: unknown, fullText = false): TextContent {
     ? paragraphs.join('\n\n')
     : paragraphs.slice(0, EXCERPT_PARAGRAPH_COUNT).join('\n\n');
 
-  const text = `## ${d.headline}\n*${meta.join(' | ')}*\n\n${body}`;
-
-  return { type: 'text', text };
+  return textContent(`## ${d.headline}\n*${meta.join(' | ')}*\n\n${body}`);
 }
 
 export function formatFullArticle(doc: unknown): TextContent {
@@ -87,7 +126,40 @@ export function formatFullArticle(doc: unknown): TextContent {
   const meta = lines.join('\n');
   const body = (Array.isArray(d.news) ? d.news : []).join('\n\n');
 
-  return { type: 'text', text: `## ${d.headline}\n\n${meta}\n\n---\n\n${body}` };
+  return textContent(`## ${d.headline}\n\n${meta}\n\n---\n\n${body}`);
+}
+
+/**
+ * Unified output formatter for multi-document tool results.
+ * Handles json/csv/markdown branching in one place.
+ */
+export function formatDocumentOutput(
+  documents: unknown[],
+  format: string,
+  opts: {
+    fields: string[];
+    fullText?: boolean;
+    jsonMeta?: Record<string, unknown>;
+    markdownPrefix?: TextContent[];
+  },
+): { content: TextContent[] } {
+  if (format === 'json') {
+    const { content, truncated } = formatDocumentsAsJsonInner(documents, opts.fields, opts.jsonMeta);
+    const result: TextContent[] = [content];
+    if (truncated) result.push(textContent(TRUNCATION_HINT));
+    return { content: result };
+  }
+  if (format === 'csv') {
+    const { content, truncated } = formatDocumentsAsCsvInner(documents, opts.fields);
+    const result: TextContent[] = [content];
+    if (truncated) result.push(textContent(TRUNCATION_HINT));
+    return { content: result };
+  }
+  const content: TextContent[] = [
+    ...(opts.markdownPrefix ?? []),
+    ...documents.map(doc => formatDocument(doc, opts.fullText ?? false)),
+  ];
+  return { content: truncateIfNeeded(content) };
 }
 
 export function textContent(text: string): TextContent {
@@ -97,7 +169,7 @@ export function textContent(text: string): TextContent {
 export function toolError(message: string) {
   return {
     isError: true as const,
-    content: [textContent(message)]
+    content: [textContent(message)],
   };
 }
 
@@ -118,9 +190,7 @@ export function truncateIfNeeded(content: TextContent[]): TextContent[] {
     truncated.push(item);
     accumulated += item.text.length;
   }
-  truncated.push(textContent(
-    `\n\n---\n*Response truncated (exceeded ${CHARACTER_LIMIT} characters). Use a smaller \`size\` or add filters to reduce results.*`
-  ));
+  truncated.push(textContent(TRUNCATION_HINT));
   return truncated;
 }
 

@@ -9,7 +9,9 @@
     "./definitions": "./build/definitions.js"
   },
   "scripts": {
-    "build": "tsc && chmod 755 build/index.js",
+    "clean": "rm -rf build",
+    "build": "pnpm run clean && tsc && chmod 755 build/index.js",
+    "prepublishOnly": "pnpm run build",
     "start": "node build/index.js",
     "test": "vitest run"
   },

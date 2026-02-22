@@ -1,8 +1,11 @@
+import { createRequire } from 'node:module';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ApiCore } from "afpnews-api";
 import { registerTools } from "./tools/index.js";
 import { registerResources } from "./resources/index.js";
 import { registerPrompts } from "./prompts/index.js";
+
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
 
 export interface ServerContext {
   server: McpServer;
@@ -33,7 +36,7 @@ export async function createServer({
 
   const server = new McpServer({
     name: "afpnews",
-    version: "1.3.9",
+    version,
   });
 
   const ctx = { server, apicore };
