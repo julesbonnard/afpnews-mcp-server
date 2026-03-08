@@ -3,6 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import 'dotenv/config';
 import rateLimit from 'express-rate-limit';
+import { createHash } from 'node:crypto';
+import { EncryptJWT, jwtDecrypt } from 'jose';
 import { createServer } from './server.js';
 
 type StdioAuthConfig = { apiKey: string; username: string; password: string; baseUrl?: string };
@@ -28,6 +30,28 @@ const SESSION_TTL_MS = (() => {
   return val;
 })();
 
+async function encryptCredentials(
+  key: Uint8Array,
+  username: string,
+  password: string,
+): Promise<string> {
+  return new EncryptJWT({ u: username, p: password })
+    .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+    .setIssuedAt()
+    .setExpirationTime('30d')
+    .encrypt(key);
+}
+
+async function decryptCredentials(
+  key: Uint8Array,
+  token: string,
+): Promise<{ username: string; password: string }> {
+  const { payload } = await jwtDecrypt(token, key);
+  const { u, p } = payload as { u: string; p: string };
+  if (!u || !p) throw new Error('Invalid token payload');
+  return { username: u, password: p };
+}
+
 async function startHttpServer() {
   const { default: express } = await import('express');
 
@@ -50,6 +74,7 @@ async function startHttpServer() {
   if (!serverUrl) {
     throw new Error('MCP_SERVER_URL is required in HTTP mode (e.g. https://news-mcp.jub.cool)');
   }
+  const encryptionKey = createHash('sha256').update(jwtSecret).digest();
 
   const app = express();
 
