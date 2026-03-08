@@ -3,9 +3,9 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import 'dotenv/config';
 import rateLimit from 'express-rate-limit';
-import { createHash } from 'node:crypto';
+import { hkdfSync } from 'node:crypto';
 import { EncryptJWT, jwtDecrypt } from 'jose';
-import { createServer } from './server.js';
+import { createServer, type AfpAuthToken } from './server.js';
 
 type StdioAuthConfig = { apiKey: string; username: string; password: string; baseUrl?: string };
 
@@ -30,11 +30,35 @@ const SESSION_TTL_MS = (() => {
   return val;
 })();
 
-async function encryptCredentials(
-  key: Uint8Array,
-  username: string,
-  password: string,
-): Promise<string> {
+// Security fix #8: HKDF key derivation (replaces raw SHA-256)
+function deriveKey(secret: string, purpose: string): Uint8Array {
+  return new Uint8Array(
+    hkdfSync('sha256', Buffer.from(secret), Buffer.from('afp-mcp-v1'), Buffer.from(purpose), 32),
+  );
+}
+
+// Access token: contains AFP API token (not user credentials)
+type AfpTokenPayload = { at: string; rt: string; exp: number; u: string };
+
+async function encryptAfpToken(key: Uint8Array, payload: AfpTokenPayload): Promise<string> {
+  // Expire the JWE when the AFP token expires (min 60s from now)
+  const ttlSeconds = Math.max(60, Math.floor((payload.exp - Date.now()) / 1000));
+  return new EncryptJWT({ at: payload.at, rt: payload.rt, exp: payload.exp, u: payload.u })
+    .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+    .setIssuedAt()
+    .setExpirationTime(`${ttlSeconds}s`)
+    .encrypt(key);
+}
+
+async function decryptAfpToken(key: Uint8Array, token: string): Promise<AfpTokenPayload> {
+  const { payload } = await jwtDecrypt(token, key);
+  const { at, rt, exp, u } = payload as AfpTokenPayload;
+  if (!at || !u) throw new Error('Invalid access token payload');
+  return { at: at as string, rt: (rt as string) || '', exp: (exp as number) || 0, u: u as string };
+}
+
+// Refresh token: contains encrypted AFP credentials
+async function encryptCredentials(key: Uint8Array, username: string, password: string): Promise<string> {
   return new EncryptJWT({ u: username, p: password })
     .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
     .setIssuedAt()
@@ -42,27 +66,21 @@ async function encryptCredentials(
     .encrypt(key);
 }
 
-async function decryptCredentials(
-  key: Uint8Array,
-  token: string,
-): Promise<{ username: string; password: string }> {
+async function decryptCredentials(key: Uint8Array, token: string): Promise<{ username: string; password: string }> {
   const { payload } = await jwtDecrypt(token, key);
   const { u, p } = payload as { u: string; p: string };
   if (!u || !p) throw new Error('Invalid token payload');
-  return { username: u, password: p };
+  return { username: u as string, password: p as string };
 }
 
+// Security fix #1: XSS — use JSON.stringify for all JS-embedded values
+// Security fix #6: CSP + X-Frame-Options headers added in the route handler
 function buildLoginPage(params: {
   redirectUri: string;
   codeChallenge: string;
   state?: string;
   clientId?: string;
 }): string {
-  const p = {
-    redirectUri: params.redirectUri.replace(/'/g, "\\'"),
-    codeChallenge: params.codeChallenge.replace(/'/g, "\\'"),
-    state: (params.state ?? '').replace(/'/g, "\\'"),
-  };
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -98,6 +116,9 @@ function buildLoginPage(params: {
     </form>
   </div>
   <script>
+    const REDIRECT_URI = ${JSON.stringify(params.redirectUri)};
+    const CODE_CHALLENGE = ${JSON.stringify(params.codeChallenge)};
+    const STATE = ${JSON.stringify(params.state ?? '')};
     document.getElementById('form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btn');
@@ -113,9 +134,9 @@ function buildLoginPage(params: {
             grant_type: 'afp_credentials',
             username: document.getElementById('username').value,
             password: document.getElementById('password').value,
-            redirect_uri: '${p.redirectUri}',
-            code_challenge: '${p.codeChallenge}',
-            state: '${p.state}',
+            redirect_uri: REDIRECT_URI,
+            code_challenge: CODE_CHALLENGE,
+            state: STATE,
           }),
         });
         if (!res.ok) {
@@ -123,9 +144,9 @@ function buildLoginPage(params: {
           throw new Error(data.error_description || 'Identifiants invalides');
         }
         const { code } = await res.json();
-        const url = new URL('${p.redirectUri}');
+        const url = new URL(REDIRECT_URI);
         url.searchParams.set('code', code);
-        if ('${p.state}') url.searchParams.set('state', '${p.state}');
+        if (STATE) url.searchParams.set('state', STATE);
         document.getElementById('username').value = '';
         document.getElementById('password').value = '';
         window.location.href = url.toString();
@@ -139,6 +160,18 @@ function buildLoginPage(params: {
   </script>
 </body>
 </html>`;
+}
+
+// Security fix #2/#7: validate redirect_uri format (must be https or localhost)
+function isAllowedRedirectUri(uri: string): boolean {
+  try {
+    const url = new URL(uri);
+    if (url.protocol === 'https:') return true;
+    if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 async function startHttpServer() {
@@ -157,11 +190,18 @@ async function startHttpServer() {
   if (!serverUrl) {
     throw new Error('MCP_SERVER_URL is required in HTTP mode (e.g. https://news-mcp.jub.cool)');
   }
-  const encryptionKey = createHash('sha256').update(jwtSecret).digest();
+
+  // Security fix #8: HKDF — separate keys for access vs refresh tokens
+  const accessKey = deriveKey(jwtSecret, 'access-token');
+  const refreshKey = deriveKey(jwtSecret, 'refresh-token');
 
   const app = express();
 
-  type Session = { transport: StreamableHTTPServerTransport; server: McpServer; lastAccessedAt: number };
+  // Security fix #3: trust proxy so rate limiting works correctly behind Traefik
+  app.set('trust proxy', 1);
+
+  // Security fix #5: sessions store username for binding validation
+  type Session = { transport: StreamableHTTPServerTransport; server: McpServer; lastAccessedAt: number; username: string };
   const sessions = new Map<string, Session>();
 
   setInterval(() => {
@@ -174,7 +214,6 @@ async function startHttpServer() {
     }
   }, 60_000);
 
-  // Task 3 — Auth code store with TTL cleanup
   type AuthCode = {
     username: string;
     password: string;
@@ -197,7 +236,6 @@ async function startHttpServer() {
     res.json({ status: 'ok' });
   });
 
-  // Task 6 — OAuth2 discovery metadata and DCR shim
   app.get('/.well-known/oauth-authorization-server', (_req, res) => {
     res.json({
       issuer: serverUrl,
@@ -212,7 +250,7 @@ async function startHttpServer() {
   });
 
   const registerLimiter = rateLimit({ windowMs: 60_000, max: 20 });
-  app.post('/oauth/register', registerLimiter, express.json(), (req, res) => {
+  app.post('/oauth/register', registerLimiter, express.json({ limit: '10kb' }), (req, res) => {
     const body = req.body as { redirect_uris?: string[] } | undefined;
     res.status(201).json({
       client_id: serverUrl,
@@ -224,27 +262,39 @@ async function startHttpServer() {
     });
   });
 
-  // Task 4 — GET /oauth/authorize — AFP login page
+  // Security fix #2/#6/#7: validate redirect_uri + CSP + X-Frame-Options
   app.get('/oauth/authorize', (req, res) => {
     const { redirect_uri, code_challenge, state, client_id } = req.query as Record<string, string>;
     if (!redirect_uri || !code_challenge) {
       res.status(400).send('Missing required OAuth2 parameters');
       return;
     }
+    if (!isAllowedRedirectUri(redirect_uri)) {
+      res.status(400).send('Invalid redirect_uri: must be https or localhost');
+      return;
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'");
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(buildLoginPage({ redirectUri: redirect_uri, codeChallenge: code_challenge, state, clientId: client_id }));
   });
 
-  // Task 5 — POST /oauth/token
+  // Security fix #3/#4/#10: trust proxy + body size limit
   const tokenLimiter = rateLimit({ windowMs: 60_000, max: 10 });
-  app.post('/oauth/token', tokenLimiter, express.json(), async (req, res) => {
+  app.post('/oauth/token', tokenLimiter, express.json({ limit: '10kb' }), async (req, res) => {
     const body = req.body as Record<string, string>;
     const grantType = body.grant_type;
 
+    // Grant: AFP login — validate AFP credentials, issue auth code
     if (grantType === 'afp_credentials') {
       const { username: reqUsername, password: reqPassword, redirect_uri, code_challenge, state } = body;
       if (!reqUsername || !reqPassword || !redirect_uri || !code_challenge) {
         res.status(400).json({ error: 'invalid_request', error_description: 'Missing required fields' });
+        return;
+      }
+      if (!isAllowedRedirectUri(redirect_uri)) {
+        res.status(400).json({ error: 'invalid_request', error_description: 'Invalid redirect_uri' });
         return;
       }
       try {
@@ -267,6 +317,7 @@ async function startHttpServer() {
       return;
     }
 
+    // Grant: authorization_code — PKCE check, issue AFP-token-based access token + credential-based refresh token
     if (grantType === 'authorization_code') {
       const { code, code_verifier, redirect_uri } = body;
       if (!code || !code_verifier || !redirect_uri) {
@@ -278,6 +329,7 @@ async function startHttpServer() {
         res.status(400).json({ error: 'invalid_grant', error_description: 'Auth code expired or not found' });
         return;
       }
+      const { createHash } = await import('node:crypto');
       const expectedChallenge = createHash('sha256').update(code_verifier).digest('base64url');
       if (expectedChallenge !== stored.codeChallenge) {
         res.status(400).json({ error: 'invalid_grant', error_description: 'PKCE verification failed' });
@@ -288,17 +340,32 @@ async function startHttpServer() {
         return;
       }
       authCodes.delete(code);
-      const accessToken = await encryptCredentials(encryptionKey, stored.username, stored.password);
-      const refreshToken = await encryptCredentials(encryptionKey, stored.username, stored.password);
-      res.json({
-        access_token: accessToken,
-        token_type: 'bearer',
-        expires_in: 30 * 24 * 3600,
-        refresh_token: refreshToken,
+
+      // Security fix #9: access token = AFP API token (short-lived), refresh token = credentials (30d)
+      let afpToken: AfpAuthToken;
+      try {
+        const { ApiCore } = await import('afpnews-api');
+        const client = new ApiCore({ ...(afpBaseUrl ? { baseUrl: afpBaseUrl } : {}), apiKey });
+        afpToken = await client.authenticate({ username: stored.username, password: stored.password });
+      } catch {
+        res.status(502).json({ error: 'server_error', error_description: 'AFP authentication failed' });
+        return;
+      }
+
+      const accessToken = await encryptAfpToken(accessKey, {
+        at: afpToken.accessToken,
+        rt: afpToken.refreshToken,
+        exp: afpToken.tokenExpires,
+        u: stored.username,
       });
+      const refreshToken = await encryptCredentials(refreshKey, stored.username, stored.password);
+      const expiresIn = Math.max(60, Math.floor((afpToken.tokenExpires - Date.now()) / 1000));
+
+      res.json({ access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token: refreshToken });
       return;
     }
 
+    // Grant: refresh_token — re-authenticate AFP, issue new access token
     if (grantType === 'refresh_token') {
       const { refresh_token } = body;
       if (!refresh_token) {
@@ -306,16 +373,20 @@ async function startHttpServer() {
         return;
       }
       try {
-        const { username: u, password: pw } = await decryptCredentials(encryptionKey, refresh_token);
-        const accessToken = await encryptCredentials(encryptionKey, u, pw);
-        res.json({
-          access_token: accessToken,
-          token_type: 'bearer',
-          expires_in: 30 * 24 * 3600,
-          refresh_token,
+        const { username: u, password: pw } = await decryptCredentials(refreshKey, refresh_token);
+        const { ApiCore } = await import('afpnews-api');
+        const client = new ApiCore({ ...(afpBaseUrl ? { baseUrl: afpBaseUrl } : {}), apiKey });
+        const afpToken: AfpAuthToken = await client.authenticate({ username: u, password: pw });
+        const accessToken = await encryptAfpToken(accessKey, {
+          at: afpToken.accessToken,
+          rt: afpToken.refreshToken,
+          exp: afpToken.tokenExpires,
+          u,
         });
+        const expiresIn = Math.max(60, Math.floor((afpToken.tokenExpires - Date.now()) / 1000));
+        res.json({ access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token });
       } catch {
-        res.status(401).json({ error: 'invalid_grant', error_description: 'Invalid refresh token' });
+        res.status(401).json({ error: 'invalid_grant', error_description: 'Invalid refresh token or AFP credentials' });
       }
       return;
     }
@@ -323,7 +394,7 @@ async function startHttpServer() {
     res.status(400).json({ error: 'unsupported_grant_type' });
   });
 
-  // Task 7 — /mcp with JWE token validation
+  // /mcp: decrypt AFP token from access token, reuse or create session
   app.all('/mcp', async (req, res) => {
     const authHeader = req.headers.authorization;
 
@@ -334,11 +405,10 @@ async function startHttpServer() {
     }
 
     const token = authHeader.slice(7);
-    let mcpUsername: string;
-    let mcpPassword: string;
+    let afpPayload: AfpTokenPayload;
 
     try {
-      ({ username: mcpUsername, password: mcpPassword } = await decryptCredentials(encryptionKey, token));
+      afpPayload = await decryptAfpToken(accessKey, token);
     } catch {
       res.setHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
       res.status(401).json({ error: 'Invalid or expired token' });
@@ -349,6 +419,11 @@ async function startHttpServer() {
 
     if (sessionId && sessions.has(sessionId)) {
       const session = sessions.get(sessionId)!;
+      // Security fix #5: bind session to username — prevent session hijacking across users
+      if (session.username !== afpPayload.u) {
+        res.status(401).json({ error: 'Token does not match session' });
+        return;
+      }
       session.lastAccessedAt = Date.now();
       await session.transport.handleRequest(req, res);
       return;
@@ -363,7 +438,11 @@ async function startHttpServer() {
       sessionIdGenerator: () => crypto.randomUUID(),
     });
 
-    const server = await createServer({ apiKey, username: mcpUsername, password: mcpPassword, baseUrl: afpBaseUrl });
+    const server = await createServer({
+      apiKey,
+      authToken: { accessToken: afpPayload.at, refreshToken: afpPayload.rt, tokenExpires: afpPayload.exp },
+      baseUrl: afpBaseUrl,
+    });
     await server.connect(transport);
 
     transport.onclose = () => {
@@ -378,8 +457,8 @@ async function startHttpServer() {
 
     const sid = transport.sessionId;
     if (sid) {
-      sessions.set(sid, { transport, server, lastAccessedAt: Date.now() });
-      console.error(`Session ${sid} created (user: ${mcpUsername})`);
+      sessions.set(sid, { transport, server, lastAccessedAt: Date.now(), username: afpPayload.u });
+      console.error(`Session ${sid} created (user: ${afpPayload.u})`);
     }
   });
 

@@ -12,10 +12,17 @@ export interface ServerContext {
   apicore: ApiCore;
 }
 
+export interface AfpAuthToken {
+  accessToken: string;
+  refreshToken: string;
+  tokenExpires: number;
+}
+
 export interface CreateServerOptions {
   apiKey: string;
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
+  authToken?: AfpAuthToken;
   baseUrl?: string;
 }
 
@@ -23,16 +30,22 @@ export async function createServer({
   apiKey,
   username,
   password,
+  authToken,
   baseUrl,
 }: CreateServerOptions): Promise<McpServer> {
-  if (!apiKey || !username || !password) {
-    throw new Error(
-      "Missing authentication configuration. Provide APICORE_API_KEY, APICORE_USERNAME and APICORE_PASSWORD.",
-    );
+  if (!apiKey) {
+    throw new Error('Missing authentication configuration: APICORE_API_KEY is required.');
   }
 
   const apicore = new ApiCore({ ...(baseUrl ? { baseUrl } : {}), apiKey });
-  await apicore.authenticate({ username, password });
+
+  if (authToken) {
+    apicore.token = { ...authToken, authType: 'credentials' };
+  } else if (username && password) {
+    await apicore.authenticate({ username, password });
+  } else {
+    throw new Error('Missing authentication: provide either authToken or username+password.');
+  }
 
   const server = new McpServer({
     name: "afpnews",

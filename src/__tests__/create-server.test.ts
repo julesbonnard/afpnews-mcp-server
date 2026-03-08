@@ -69,6 +69,6 @@ describe('createServer', () => {
   it('throws on missing credentials', async () => {
     await expect(
       createServer({ apiKey: 'api-key', username: 'user', password: '' }),
-    ).rejects.toThrow('Missing authentication configuration');
+    ).rejects.toThrow('Missing authentication');
   });
 });
