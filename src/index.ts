@@ -31,6 +31,7 @@ function buildAuthentikUrls(baseUrl: string, slug: string) {
     authorizationEndpoint: `${base}/application/o/authorize/`,
     tokenEndpoint: `${base}/application/o/token/`,
     jwksUri: `${base}/application/o/${slug}/jwks/`,
+    registrationEndpoint: `${base}/application/o/${slug}/register/`,
   };
 }
 
@@ -83,6 +84,7 @@ async function startHttpServer() {
       authorization_endpoint: urls.authorizationEndpoint,
       token_endpoint: urls.tokenEndpoint,
       jwks_uri: urls.jwksUri,
+      registration_endpoint: urls.registrationEndpoint,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
