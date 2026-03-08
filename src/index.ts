@@ -60,7 +60,6 @@ async function startHttpServer() {
   }
 
   const authentikClientId = process.env.AUTHENTIK_CLIENT_ID;
-  const authentikClientSecret = process.env.AUTHENTIK_CLIENT_SECRET?.trim();
   if (!authentikClientId) {
     throw new Error('AUTHENTIK_CLIENT_ID is required in HTTP mode');
   }
