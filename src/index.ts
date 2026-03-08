@@ -162,13 +162,26 @@ function buildLoginPage(params: {
 </html>`;
 }
 
-// Security fix #2/#7: validate redirect_uri format (must be https or localhost)
-function isAllowedRedirectUri(uri: string): boolean {
+// Security fix #2/#7: strict redirect_uri whitelist
+// - localhost/127.0.0.1 (any port): Claude Code local OAuth server
+// - explicit https URIs: Claude Web + MCP_ALLOWED_REDIRECT_URIS env var
+const BUILTIN_ALLOWED_URIS = ['https://claude.ai/api/mcp/auth_callback'];
+
+function buildAllowedUris(): string[] {
+  const extra = process.env.MCP_ALLOWED_REDIRECT_URIS;
+  if (!extra) return BUILTIN_ALLOWED_URIS;
+  return [...BUILTIN_ALLOWED_URIS, ...extra.split(',').map(s => s.trim()).filter(Boolean)];
+}
+
+function isAllowedRedirectUri(uri: string, allowedUris: string[]): boolean {
   try {
     const url = new URL(uri);
-    if (url.protocol === 'https:') return true;
-    if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) return true;
-    return false;
+    // Claude Code uses a local HTTP server on a random port
+    if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
+      return true;
+    }
+    // Explicit https whitelist (exact match)
+    return allowedUris.includes(uri);
   } catch {
     return false;
   }
@@ -190,6 +203,9 @@ async function startHttpServer() {
   if (!serverUrl) {
     throw new Error('MCP_SERVER_URL is required in HTTP mode (e.g. https://news-mcp.jub.cool)');
   }
+
+  const allowedUris = buildAllowedUris();
+  console.error(`Allowed redirect URIs: localhost/* + ${allowedUris.filter(u => !u.includes('localhost')).join(', ')}`);
 
   // Security fix #8: HKDF — separate keys for access vs refresh tokens
   const accessKey = deriveKey(jwtSecret, 'access-token');
@@ -269,8 +285,8 @@ async function startHttpServer() {
       res.status(400).send('Missing required OAuth2 parameters');
       return;
     }
-    if (!isAllowedRedirectUri(redirect_uri)) {
-      res.status(400).send('Invalid redirect_uri: must be https or localhost');
+    if (!isAllowedRedirectUri(redirect_uri, allowedUris)) {
+      res.status(400).send('Invalid redirect_uri: not in the allowed list');
       return;
     }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -293,7 +309,7 @@ async function startHttpServer() {
         res.status(400).json({ error: 'invalid_request', error_description: 'Missing required fields' });
         return;
       }
-      if (!isAllowedRedirectUri(redirect_uri)) {
+      if (!isAllowedRedirectUri(redirect_uri, allowedUris)) {
         res.status(400).json({ error: 'invalid_request', error_description: 'Invalid redirect_uri' });
         return;
       }
