@@ -1,5 +1,5 @@
 node_modules
-src
+build
 .env
 .git
 .continue

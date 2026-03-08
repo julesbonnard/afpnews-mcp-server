@@ -33,6 +33,8 @@ export function resolveStdioAuthConfig(env: NodeJS.ProcessEnv = process.env): St
   return { apiKey, username, password, baseUrl };
 }
 
+const SESSION_TTL_MS = parseInt(process.env.MCP_SESSION_TTL || '3600000', 10);
+
 async function startHttpServer() {
   const { default: express } = await import('express');
 
@@ -42,28 +44,60 @@ async function startHttpServer() {
   }
 
   const baseUrl = process.env.APICORE_BASE_URL?.trim();
+  const envUsername = process.env.APICORE_USERNAME?.trim();
+  const envPassword = process.env.APICORE_PASSWORD?.trim();
+  const useEnvCredentials = Boolean(envUsername && envPassword);
 
   const app = express();
 
-  const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: McpServer }>();
+  type Session = { transport: StreamableHTTPServerTransport; server: McpServer; lastAccessedAt: number };
+  const sessions = new Map<string, Session>();
+
+  // Nettoyage périodique des sessions expirées
+  setInterval(() => {
+    const now = Date.now();
+    for (const [sid, session] of sessions) {
+      if (now - session.lastAccessedAt > SESSION_TTL_MS) {
+        sessions.delete(sid);
+        console.error(`Session ${sid} expired`);
+      }
+    }
+  }, 60_000);
+
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', sessions: sessions.size });
+  });
 
   app.all('/mcp', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      res.status(401).json({ error: 'Authorization header required' });
-      return;
-    }
+    let username: string;
+    let password: string;
 
-    const credentials = decodeBasicAuth(authHeader);
-    if (!credentials) {
-      res.status(401).json({ error: 'Invalid Basic auth header' });
-      return;
+    if (useEnvCredentials) {
+      // Auth déléguée à Authentik — credentials AFP depuis les variables d'env
+      username = envUsername!;
+      password = envPassword!;
+    } else {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        res.status(401).json({ error: 'Authorization header required' });
+        return;
+      }
+
+      const credentials = decodeBasicAuth(authHeader);
+      if (!credentials) {
+        res.status(401).json({ error: 'Invalid Basic auth header' });
+        return;
+      }
+
+      username = credentials.username;
+      password = credentials.password;
     }
 
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
     if (sessionId && sessions.has(sessionId)) {
       const session = sessions.get(sessionId)!;
+      session.lastAccessedAt = Date.now();
       await session.transport.handleRequest(req, res);
       return;
     }
@@ -78,7 +112,7 @@ async function startHttpServer() {
       sessionIdGenerator: () => crypto.randomUUID(),
     });
 
-    const server = await createServer({ apiKey, username: credentials.username, password: credentials.password, baseUrl });
+    const server = await createServer({ apiKey, username, password, baseUrl });
     await server.connect(transport);
 
     transport.onclose = () => {
@@ -93,7 +127,7 @@ async function startHttpServer() {
 
     const sid = transport.sessionId;
     if (sid) {
-      sessions.set(sid, { transport, server });
+      sessions.set(sid, { transport, server, lastAccessedAt: Date.now() });
       console.error(`Session ${sid} created`);
     }
   });
