@@ -31,7 +31,6 @@ function buildAuthentikUrls(baseUrl: string, slug: string) {
     authorizationEndpoint: `${base}/application/o/authorize/`,
     tokenEndpoint: `${base}/application/o/token/`,
     jwksUri: `${base}/application/o/${slug}/jwks/`,
-    registrationEndpoint: `${base}/application/o/${slug}/register/`,
   };
 }
 
@@ -55,10 +54,22 @@ async function startHttpServer() {
     throw new Error('AUTHENTIK_BASE_URL and AUTHENTIK_APP_SLUG are required in HTTP mode');
   }
 
+  const authentikClientId = process.env.AUTHENTIK_CLIENT_ID;
+  const authentikClientSecret = process.env.AUTHENTIK_CLIENT_SECRET?.trim();
+  if (!authentikClientId) {
+    throw new Error('AUTHENTIK_CLIENT_ID is required in HTTP mode');
+  }
+
+  const serverUrl = process.env.MCP_SERVER_URL?.replace(/\/$/, '');
+  if (!serverUrl) {
+    throw new Error('MCP_SERVER_URL is required in HTTP mode (e.g. https://news-mcp.jub.cool)');
+  }
+
   const urls = buildAuthentikUrls(authentikBaseUrl, authentikSlug);
   const jwks = createRemoteJWKSet(new URL(urls.jwksUri));
 
   const app = express();
+  app.use('/oauth/register', express.json());
 
   type Session = { transport: StreamableHTTPServerTransport; server: McpServer; lastAccessedAt: number };
   const sessions = new Map<string, Session>();
@@ -84,11 +95,27 @@ async function startHttpServer() {
       authorization_endpoint: urls.authorizationEndpoint,
       token_endpoint: urls.tokenEndpoint,
       jwks_uri: urls.jwksUri,
-      registration_endpoint: urls.registrationEndpoint,
+      registration_endpoint: `${serverUrl}/oauth/register`,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none', 'client_secret_basic'],
+    });
+  });
+
+  // DCR shim — Authentik ne supporte pas la Dynamic Client Registration.
+  // On accepte toute demande d'enregistrement et on renvoie le client_id Authentik pré-configuré.
+  // Chaque utilisateur s'authentifie avec son propre compte Authentik, seul le client_id est partagé.
+  app.post('/oauth/register', (req, res) => {
+    const body = req.body as { redirect_uris?: string[] } | undefined;
+    res.status(201).json({
+      client_id: authentikClientId,
+      ...(authentikClientSecret ? { client_secret: authentikClientSecret } : {}),
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      redirect_uris: body?.redirect_uris ?? [],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: authentikClientSecret ? 'client_secret_basic' : 'none',
     });
   });
 
