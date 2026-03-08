@@ -147,12 +147,6 @@ async function startHttpServer() {
   const apiKey = process.env.APICORE_API_KEY;
   if (!apiKey) throw new Error('APICORE_API_KEY environment variable is required');
 
-  const username = process.env.APICORE_USERNAME?.trim();
-  const password = process.env.APICORE_PASSWORD?.trim();
-  if (!username || !password) {
-    throw new Error('APICORE_USERNAME and APICORE_PASSWORD are required in HTTP mode');
-  }
-
   const afpBaseUrl = process.env.APICORE_BASE_URL?.trim();
 
   const jwtSecret = process.env.JWT_SECRET;
