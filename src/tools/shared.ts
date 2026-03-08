@@ -84,6 +84,8 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
 };
 
 export function formatErrorMessage(context: string, error: unknown, hint: string): string {
-  const message = error instanceof Error ? error.message : String(error);
+  // Log the full error server-side only — never expose internal details to the client.
+  console.error(`[afp_tool] Error ${context}:`, error);
+  const message = error instanceof Error ? error.message : 'Unexpected error';
   return `Error ${context}: ${message}. ${hint}`;
 }

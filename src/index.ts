@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import 'dotenv/config';
+import rateLimit from 'express-rate-limit';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createServer } from './server.js';
 
@@ -22,7 +23,11 @@ export function resolveStdioAuthConfig(env: NodeJS.ProcessEnv = process.env): St
   return { apiKey, username, password, baseUrl };
 }
 
-const SESSION_TTL_MS = parseInt(process.env.MCP_SESSION_TTL || '3600000', 10);
+const SESSION_TTL_MS = (() => {
+  const val = parseInt(process.env.MCP_SESSION_TTL || '3600000', 10);
+  if (isNaN(val) || val <= 0) throw new Error('MCP_SESSION_TTL must be a positive integer (milliseconds)');
+  return val;
+})();
 
 function buildAuthentikUrls(baseUrl: string, slug: string) {
   const base = baseUrl.replace(/\/$/, '');
@@ -85,7 +90,7 @@ async function startHttpServer() {
   }, 60_000);
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', sessions: sessions.size });
+    res.json({ status: 'ok' });
   });
 
   // OAuth2 Authorization Server Metadata — découverte automatique par les clients MCP
@@ -106,16 +111,17 @@ async function startHttpServer() {
   // DCR shim — Authentik ne supporte pas la Dynamic Client Registration.
   // On accepte toute demande d'enregistrement et on renvoie le client_id Authentik pré-configuré.
   // Chaque utilisateur s'authentifie avec son propre compte Authentik, seul le client_id est partagé.
-  app.post('/oauth/register', (req, res) => {
+  // Le client_secret n'est jamais exposé ici : le flux PKCE (client public) suffit pour Claude Code et Claude Web.
+  const registerLimiter = rateLimit({ windowMs: 60_000, max: 20 });
+  app.post('/oauth/register', registerLimiter, (req, res) => {
     const body = req.body as { redirect_uris?: string[] } | undefined;
     res.status(201).json({
       client_id: authentikClientId,
-      ...(authentikClientSecret ? { client_secret: authentikClientSecret } : {}),
       client_id_issued_at: Math.floor(Date.now() / 1000),
       redirect_uris: body?.redirect_uris ?? [],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      token_endpoint_auth_method: authentikClientSecret ? 'client_secret_basic' : 'none',
+      token_endpoint_auth_method: 'none',
     });
   });
 
