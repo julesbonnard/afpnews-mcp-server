@@ -57,20 +57,20 @@ async function decryptAfpToken(key: Uint8Array, token: string): Promise<AfpToken
   return { at: at as string, rt: (rt as string) || '', exp: (exp as number) || 0, u: u as string };
 }
 
-// Refresh token: contains encrypted AFP credentials
-async function encryptCredentials(key: Uint8Array, username: string, password: string): Promise<string> {
-  return new EncryptJWT({ u: username, p: password })
+// Refresh token: contains AFP refresh token only — no user credentials stored
+async function encryptAfpRefreshToken(key: Uint8Array, afpRefreshToken: string, username: string): Promise<string> {
+  return new EncryptJWT({ rfp: afpRefreshToken, u: username })
     .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
     .setIssuedAt()
     .setExpirationTime('30d')
     .encrypt(key);
 }
 
-async function decryptCredentials(key: Uint8Array, token: string): Promise<{ username: string; password: string }> {
+async function decryptAfpRefreshToken(key: Uint8Array, token: string): Promise<{ afpRefreshToken: string; username: string }> {
   const { payload } = await jwtDecrypt(token, key);
-  const { u, p } = payload as { u: string; p: string };
-  if (!u || !p) throw new Error('Invalid token payload');
-  return { username: u as string, password: p as string };
+  const { rfp, u } = payload as { rfp: string; u: string };
+  if (!rfp || !u) throw new Error('Invalid refresh token payload');
+  return { afpRefreshToken: rfp as string, username: u as string };
 }
 
 // Security fix #1: XSS — use JSON.stringify for all JS-embedded values
@@ -374,35 +374,47 @@ async function startHttpServer() {
         exp: afpToken.tokenExpires,
         u: stored.username,
       });
-      const refreshToken = await encryptCredentials(refreshKey, stored.username, stored.password);
+      const refreshToken = await encryptAfpRefreshToken(refreshKey, afpToken.refreshToken, stored.username);
       const expiresIn = Math.max(60, Math.floor((afpToken.tokenExpires - Date.now()) / 1000));
 
       res.json({ access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token: refreshToken });
       return;
     }
 
-    // Grant: refresh_token — re-authenticate AFP, issue new access token
+    // Grant: refresh_token — use AFP refresh token to get a new AFP access token (no credentials needed)
     if (grantType === 'refresh_token') {
       const { refresh_token } = body;
       if (!refresh_token) {
         res.status(400).json({ error: 'invalid_request', error_description: 'Missing refresh_token' });
         return;
       }
+      let afpRefreshToken: string;
+      let username: string;
       try {
-        const { username: u, password: pw } = await decryptCredentials(refreshKey, refresh_token);
+        ({ afpRefreshToken, username } = await decryptAfpRefreshToken(refreshKey, refresh_token));
+      } catch {
+        res.status(401).json({ error: 'invalid_grant', error_description: 'Invalid refresh token' });
+        return;
+      }
+      try {
         const { ApiCore } = await import('afpnews-api');
         const client = new ApiCore({ ...(afpBaseUrl ? { baseUrl: afpBaseUrl } : {}), apiKey });
-        const afpToken: AfpAuthToken = await client.authenticate({ username: u, password: pw });
+        // Set an expired token so authenticate() triggers requestRefreshToken() internally
+        client.token = { accessToken: '', refreshToken: afpRefreshToken, tokenExpires: 0, authType: 'credentials' };
+        const newAfpToken: AfpAuthToken = await client.authenticate();
         const accessToken = await encryptAfpToken(accessKey, {
-          at: afpToken.accessToken,
-          rt: afpToken.refreshToken,
-          exp: afpToken.tokenExpires,
-          u,
+          at: newAfpToken.accessToken,
+          rt: newAfpToken.refreshToken,
+          exp: newAfpToken.tokenExpires,
+          u: username,
         });
-        const expiresIn = Math.max(60, Math.floor((afpToken.tokenExpires - Date.now()) / 1000));
-        res.json({ access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token });
+        // AFP may rotate its refresh token — always return the latest one
+        const newRefreshToken = await encryptAfpRefreshToken(refreshKey, newAfpToken.refreshToken, username);
+        const expiresIn = Math.max(60, Math.floor((newAfpToken.tokenExpires - Date.now()) / 1000));
+        res.json({ access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token: newRefreshToken });
       } catch {
-        res.status(401).json({ error: 'invalid_grant', error_description: 'Invalid refresh token or AFP credentials' });
+        // AFP refresh token expired or revoked — client must re-authenticate via /oauth/authorize
+        res.status(401).json({ error: 'invalid_grant', error_description: 'Refresh token expired, please sign in again' });
       }
       return;
     }
