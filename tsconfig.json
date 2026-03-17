@@ -1,15 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "Node16",
-    "outDir": "./build",
-    "rootDir": "./src",
-    "strict": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "strict": true,
+    "outDir": "dist"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "src/__tests__"]
+  "include": ["src"],
+  "exclude": ["node_modules"]
 }
