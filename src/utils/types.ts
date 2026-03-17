@@ -12,6 +12,7 @@ export interface AFPDocument {
   country?: string;
   city?: string;
   slug?: string[];
+  event?: string[];
   product?: string;
   revision?: number;
   created?: string;
@@ -39,7 +40,7 @@ export const DEFAULT_SEARCH_SIZE = 10;
 
 export const ALL_DOC_FIELDS = [
   'afpshortid', 'uno', 'headline', 'published', 'lang', 'genre',
-  'status', 'signal', 'advisory', 'country', 'city', 'slug', 'product', 'revision', 'created',
+  'status', 'signal', 'advisory', 'country', 'city', 'slug', 'event', 'class', 'revision', 'created',
 ] as const;
 
 export type DocField = typeof ALL_DOC_FIELDS[number];
