@@ -15,21 +15,9 @@ import {
   searchPresetEnum,
   outputFormatEnum,
   docFieldEnum,
+  facetParamValueSchema,
   UNO_FORMAT_NOTE,
 } from './shared.js';
-
-const facetParamValueSchema = z.union([
-  z.string(),
-  z.number(),
-  z.string().array(),
-  z.number().array(),
-  z.object({
-    in: z.union([z.string().array(), z.number().array()]).optional(),
-    exclude: z.union([z.string().array(), z.number().array()]).optional(),
-  }).refine((value) => value.in !== undefined || value.exclude !== undefined, {
-    message: "Facet filter object must include either 'in' or 'exclude'.",
-  }),
-]);
 
 const reservedFacetKeys = new Set([
   'preset',

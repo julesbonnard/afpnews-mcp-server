@@ -24,6 +24,27 @@ export const listPresetEnum = z.enum(LIST_PRESET_VALUES);
 
 export const langEnum = z.enum(['en', 'fr', 'de', 'pt', 'es', 'ar']);
 
+const MEDIA_CLASS_VALUES = ['picture', 'video', 'graphic'] as const;
+export const mediaClassEnum = z.enum(MEDIA_CLASS_VALUES);
+export type MediaClass = z.infer<typeof mediaClassEnum>;
+
+const RENDITION_VALUES = ['thumbnail', 'preview', 'highdef'] as const;
+export const renditionEnum = z.enum(RENDITION_VALUES);
+export type RenditionKey = z.infer<typeof renditionEnum>;
+
+export const facetParamValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.string().array(),
+  z.number().array(),
+  z.object({
+    in: z.union([z.string().array(), z.number().array()]).optional(),
+    exclude: z.union([z.string().array(), z.number().array()]).optional(),
+  }).refine((v) => v.in !== undefined || v.exclude !== undefined, {
+    message: "Facet filter object must include either 'in' or 'exclude'.",
+  }),
+]);
+
 export const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,

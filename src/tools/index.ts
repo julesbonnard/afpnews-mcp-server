@@ -4,6 +4,8 @@ import { afpSearchArticlesTool } from './search-articles.js';
 import { afpGetArticleTool } from './get-article.js';
 import { afpFindSimilarTool } from './find-similar.js';
 import { afpListFacetsTool } from './list-facets.js';
+import { afpSearchMediaTool } from './search-media.js';
+import { afpGetMediaTool } from './get-media.js';
 import { READ_ONLY_ANNOTATIONS } from './shared.js';
 
 const RAW_TOOLS = [
@@ -11,6 +13,8 @@ const RAW_TOOLS = [
   afpGetArticleTool,
   afpFindSimilarTool,
   afpListFacetsTool,
+  afpSearchMediaTool,
+  afpGetMediaTool,
 ] as const;
 
 export const TOOL_DEFINITIONS = RAW_TOOLS.map((t) => ({
