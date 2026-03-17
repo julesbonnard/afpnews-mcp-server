@@ -78,7 +78,7 @@ Args:
   - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)
   - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
   - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
-            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, product, revision, created.
+            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created.
   - fullText: Return full article body (true) or excerpt only (false, default). Only applies to markdown. Presets override to true.
   - query: Search keywords (e.g. 'climate change')
   - size: Number of results (default 10, max 1000)
@@ -102,7 +102,7 @@ Examples:
   ) => {
     try {
       const facetFilters = {
-        product: ['news', 'factcheck'],
+        class: ['text'],
         genreid: GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };

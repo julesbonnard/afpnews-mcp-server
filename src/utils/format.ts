@@ -116,7 +116,7 @@ export function formatFullArticle(doc: unknown): TextContent {
 
   const lines: string[] = [];
   lines.push(row(['UNO', d.uno]));
-  lines.push(row(['Lang', d.lang], ['Genre', d.genre], ['Product', d.product], ['Revision', d.revision]));
+  lines.push(row(['Lang', d.lang], ['Genre', d.genre], ['Class', d['class']], ['Revision', d.revision]));
 
   const extras = row(['Country', d.country], ['City', d.city], ['Slug', d.slug], ['Event', d.event]);
   if (extras) lines.push(extras);

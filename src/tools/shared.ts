@@ -50,7 +50,7 @@ export const GENRE_EXCLUSIONS = {
 };
 
 interface PresetOverrides {
-  product?: string[];
+  class?: string[];
   lang?: string[];
   slug?: string[];
   dateFrom?: string;
@@ -60,7 +60,7 @@ interface PresetOverrides {
 
 export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
   'a-la-une': {
-    product: ['news'],
+    class: ['text'],
     lang: ['fr'],
     slug: ['afp', 'actualites'],
     dateFrom: 'now-1d',
@@ -68,17 +68,17 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
     genreid: GENRE_EXCLUSIONS,
   },
   'agenda': {
-    product: ['news'],
+    class: ['text'],
     size: 5,
     genreid: ['afpattribute:Agenda'],
   },
   'previsions': {
-    product: ['news'],
+    class: ['text'],
     size: 5,
     genreid: ['afpattribute:Program', 'afpedtype:TextProgram'],
   },
   'major-stories': {
-    product: ['news'],
+    class: ['text'],
     genreid: ['afpattribute:Article'],
   },
 };

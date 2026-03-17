@@ -13,7 +13,7 @@ export interface AFPDocument {
   city?: string;
   slug?: string[];
   event?: string[];
-  product?: string;
+  'class'?: string;
   revision?: number;
   created?: string;
 }

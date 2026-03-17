@@ -1,8 +1,6 @@
 import { startHttpServer } from './http/server.js';
 import { startStdioServer } from './stdio/server.js';
 
-export { resolveStdioAuthConfig } from './stdio/server.js';
-
 export async function main() {
   if (process.env.MCP_TRANSPORT === 'http') {
     await startHttpServer();

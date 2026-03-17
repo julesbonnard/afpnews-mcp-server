@@ -53,7 +53,7 @@ Examples:
 
       const resolvedSize = size ?? 10;
       const params: Record<string, unknown> = isTrendingTopics
-        ? { langs: [lang ?? 'fr'], product: ['news'], dateFrom: 'now-1d', size: resolvedSize }
+        ? { langs: [lang ?? 'fr'], class: ['text'], dateFrom: 'now-1d', size: resolvedSize }
         : { ...(lang ? { langs: [lang] } : {}), size: resolvedSize };
 
       const rawResult = await apicore.list(resolvedFacet, params as any, 1) as any;

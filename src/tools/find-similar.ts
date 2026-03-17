@@ -33,7 +33,7 @@ Args:
   - size: Number of similar articles to return (default 10)
   - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
   - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
-            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, product, revision, created.
+            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created.
 
 Returns:
   - markdown: Summary line + formatted article excerpts

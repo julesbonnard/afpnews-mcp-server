@@ -92,7 +92,7 @@ describe('MCP integration', () => {
       expect(msg.text).toContain('Fifth paragraph is extra content.');
 
       const [request] = apicore.search.mock.calls.at(-1)!;
-      expect(request.product).toEqual(['news']);
+      expect(request.class).toEqual(['text']);
       expect(request.lang).toEqual(['fr']);
       expect(request.slug).toEqual(['afp', 'actualites']);
       expect(request.dateFrom).toBe('now-1d');
@@ -323,7 +323,7 @@ describe('MCP integration', () => {
 
       const [facet, params] = apicore.list.mock.calls.at(-1)!;
       expect(facet).toBe('slug');
-      expect(params).toMatchObject({ langs: ['fr'], product: ['news'], dateFrom: 'now-1d' });
+      expect(params).toMatchObject({ langs: ['fr'], class: ['text'], dateFrom: 'now-1d' });
     });
 
     it('returns isError on API failure', async () => {
