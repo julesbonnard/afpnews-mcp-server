@@ -27,15 +27,29 @@ Bun remplace Node.js comme runtime pour tous les contextes d'exécution :
 - Docker/Coolify : `FROM oven/bun`, `bun run src/index.ts`
 - stdio (Claude Code local) : `bun run src/index.ts`
 
+**Guard d'entrée :** Le guard `if (import.meta.url === \`file://${process.argv[1]}\`)` de Node.js ne fonctionne pas fiablement sous Bun. Il doit être remplacé par :
+
+```typescript
+if (import.meta.main) {
+  main().catch(...)
+}
+```
+
 ### Framework HTTP : Elysia + `@elysiajs/node`
 
-Elysia remplace Express. L'adaptateur `@elysiajs/node` est requis car `StreamableHTTPServerTransport.handleRequest(req, res)` du SDK MCP attend des objets Node.js `IncomingMessage`/`ServerResponse`. Bun étant Node.js-compatible, cet adaptateur fonctionne sans friction.
+Elysia remplace Express. L'adaptateur `@elysiajs/node` est requis pour deux raisons :
+
+1. **Compatibilité MCP transport** : `StreamableHTTPServerTransport.handleRequest(req, res)` attend des objets Node.js `IncomingMessage`/`ServerResponse`. L'adaptateur `@elysiajs/node` expose ces objets via `context.node.req` / `context.node.res` dans les handlers Elysia.
+
+2. **Bun est Node.js-compatible** : `@elysiajs/node` fonctionne sur Bun sans friction.
 
 Les routes OAuth bénéficient du typage automatique du body via `t.Object()` (TypeBox intégré à Elysia), éliminant tous les `as Record<string, string>` du code actuel.
 
 ### Build npm : tsc conservé
 
 `tsc` reste l'outil de build pour la publication npm — il est le seul à générer les fichiers `.d.ts` nécessaires aux consommateurs TypeScript (projet Vue.js/Vite). Son rôle passe de "compilateur runtime" à "compilateur npm uniquement".
+
+`@types/node` reste en devDependencies : `tsc` en a besoin pour type-checker les imports `node:crypto` (`hkdfSync`, `createHash`) qui subsistent dans `src/index.ts`.
 
 ---
 
@@ -56,12 +70,12 @@ Les routes OAuth bénéficient du typage automatique du body via `t.Object()` (T
 | Package | Raison |
 |---|---|
 | `elysia` | framework HTTP principal |
-| `@elysiajs/node` | adaptateur Node.js pour compatibilité MCP transport |
+| `@elysiajs/node` | adaptateur Node.js — expose `node.req`/`node.res` pour le MCP transport |
 | `@elysiajs/rate-limit` | rate limiting natif Elysia |
 
 ### Inchangées
 
-`@modelcontextprotocol/sdk`, `afpnews-api`, `jose`, `zod`, `typescript`
+`@modelcontextprotocol/sdk`, `afpnews-api`, `jose`, `zod`, `typescript`, `@types/node`
 
 ---
 
@@ -77,6 +91,8 @@ Les routes OAuth bénéficient du typage automatique du body via `t.Object()` (T
 
 `pnpm-lock.yaml` est remplacé par `bun.lock`. Le `packageManager` dans `package.json` passe de `pnpm@10.x` à `bun`.
 
+`vitest.config.ts` est supprimé. Si une configuration de test est nécessaire (patterns, timeout), elle est définie dans `bunfig.toml` sous `[test]`.
+
 ---
 
 ## Dockerfile
@@ -88,11 +104,12 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY src/ ./src/
 COPY tsconfig.json ./
+USER bun
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]
 ```
 
-Avantages : pas de step `tsc`, image plus légère, démarrage plus rapide.
+L'image `oven/bun:1` inclut un utilisateur non-root `bun` — `USER bun` doit être conservé (équivalent de la hardening `appuser` du Dockerfile actuel). Pas de step `tsc` → démarrage plus rapide, image plus légère.
 
 ---
 
@@ -126,7 +143,45 @@ La logique métier (PKCE, JWE, sessions Map, TTL cleanup, OAuth flow complet) es
 
 ### Gestion du endpoint `/mcp`
 
-Le handler `/mcp` accède aux objets Node.js req/res via l'adaptateur `@elysiajs/node` pour passer à `transport.handleRequest(req, res)`.
+Le transport MCP (Streamable HTTP) requiert `GET`, `POST` et `DELETE` sur `/mcp` (initialisation, streaming SSE, teardown de session). Elysia n'a pas d'équivalent direct à `app.all()` — les trois verbes sont enregistrés séparément :
+
+```typescript
+const mcpHandler = async ({ node: { req, res } }: { node: { req: IncomingMessage; res: ServerResponse } }) => {
+  // authentification Bearer + gestion de session identique à l'actuel
+  await transport.handleRequest(req, res);
+};
+
+app
+  .get('/mcp', mcpHandler)
+  .post('/mcp', mcpHandler)
+  .delete('/mcp', mcpHandler)
+```
+
+L'accès aux objets Node.js se fait via `context.node.req` / `context.node.res` fournis par `@elysiajs/node`.
+
+### Rate limiting et trust proxy
+
+`@elysiajs/rate-limit` doit être configuré pour honorer `X-Forwarded-For` / `X-Real-IP` derrière Traefik sur Coolify (équivalent de `app.set('trust proxy', 1)` dans Express). La configuration explicite du `generator` de clé IP est requise :
+
+```typescript
+import { rateLimit } from '@elysiajs/rate-limit'
+
+app.use(rateLimit({
+  max: 10,
+  duration: 60_000,
+  generator: (req) => req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
+}))
+```
+
+---
+
+## Migration des tests (vitest → bun test)
+
+La syntaxe `describe`/`it`/`expect` est compatible. Les points nécessitant une attention particulière :
+
+- **`vi.fn()` / `vi.spyOn()`** → `mock()` / `spyOn()` de `bun:test`
+- **`vi.mock()`** → `mock.module()` de `bun:test`
+- **`vi.hoisted()`** → **pas d'équivalent direct**. Les tests utilisant `vi.hoisted()` (notamment `create-server.test.ts`) doivent être restructurés : déplacer la déclaration des mocks avant les imports, ou utiliser `mock.module()` avec une factory. C'est la modification la plus substantielle des tests — prévoir ~2h de travail.
 
 ---
 
@@ -144,12 +199,14 @@ Le handler `/mcp` accède aux objets Node.js req/res via l'adaptateur `@elysiajs
 
 | Fichier | Nature du changement |
 |---|---|
-| `src/index.ts` | Réécriture du serveur HTTP (Express → Elysia) |
+| `src/index.ts` | Réécriture du serveur HTTP (Express → Elysia) + `import.meta.main` |
 | `package.json` | Dépendances + scripts + packageManager |
-| `Dockerfile` | FROM oven/bun, suppression tsc build step |
-| `src/__tests__/*.test.ts` | Migration vitest → bun test (syntaxe quasi-identique) |
+| `Dockerfile` | FROM oven/bun, USER bun, suppression tsc build step |
+| `src/__tests__/*.test.ts` | Migration vitest → bun test ; `vi.hoisted()` à restructurer |
 | `pnpm-lock.yaml` | Supprimé → `bun.lock` |
-| `.gitignore` / `.dockerignore` | Ajout `bun.lock` si absent |
+| `vitest.config.ts` | Supprimé |
+| `.gitignore` / `.dockerignore` | Ajout `bun.lock`, suppression mentions pnpm si présentes |
+| `bunfig.toml` | Créé si configuration de test nécessaire |
 
 ---
 
@@ -157,6 +214,7 @@ Le handler `/mcp` accède aux objets Node.js req/res via l'adaptateur `@elysiajs
 
 | Risque | Probabilité | Mitigation |
 |---|---|---|
-| `@elysiajs/node` incompatible avec `StreamableHTTPServerTransport` | Faible | Tester en premier, fallback possible vers Express pour `/mcp` uniquement |
+| `context.node.req`/`res` insuffisant pour `StreamableHTTPServerTransport` (body déjà consommé, etc.) | Faible | Valider en premier (smoke test `/mcp` POST) avant de migrer les routes OAuth ; fallback : garder Express uniquement pour `/mcp` |
+| `@elysiajs/rate-limit` sans trust proxy → rate limiting inefficace derrière Traefik | Faible si configuré | Configurer le `generator` IP explicitement (voir section Architecture HTTP) |
 | `afpnews-api` incompatible avec Bun | Très faible | Bun est Node.js-compatible, le package utilise des APIs standard |
-| `bun test` incompatible avec les tests existants (vitest) | Faible | Syntaxe Jest-compatible, ajustements mineurs attendus |
+| `vi.hoisted()` dans les tests — réécriture non triviale | Certain | Prévoir du temps dédié (~2h) ; les tests fonctionnent après restructuration |
