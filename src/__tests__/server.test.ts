@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -9,10 +9,10 @@ import { FIXTURE_DOC, makeDocs } from './fixtures.js';
 
 function createMockApicore() {
   return {
-    search: vi.fn().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
-    get: vi.fn().mockResolvedValue(makeDocs(1)[0]),
-    mlt: vi.fn().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
-    list: vi.fn().mockResolvedValue([{ name: 'economy', count: 42 }]),
+    search: mock().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
+    get: mock().mockResolvedValue(makeDocs(1)[0]),
+    mlt: mock().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
+    list: mock().mockResolvedValue([{ name: 'economy', count: 42 }]),
   };
 }
 
