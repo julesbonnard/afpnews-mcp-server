@@ -1,4 +1,4 @@
-import type { ServerContext } from '../server.js';
+import type { ServerContext } from '../mcp-server.js';
 import { dailyBriefingPrompt } from './daily-briefing.js';
 import { comprehensiveAnalysisPrompt } from './comprehensive-analysis.js';
 import { factcheckPrompt } from './factcheck.js';

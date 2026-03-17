@@ -43,7 +43,7 @@ describe('createServer', () => {
 
   it('authenticates with provided credentials', async () => {
     // Dynamic import ensures mock.module() is active when the module is loaded
-    const { createServer } = await import('../server.js');
+    const { createServer } = await import('../mcp-server.js');
     await createServer({ apiKey: 'api-key', username: 'user', password: 'pass' });
 
     expect(apiCoreInstances).toHaveLength(1);
@@ -52,21 +52,21 @@ describe('createServer', () => {
   });
 
   it('passes baseUrl to ApiCore when provided', async () => {
-    const { createServer } = await import('../server.js');
+    const { createServer } = await import('../mcp-server.js');
     await createServer({ apiKey: 'api-key', username: 'user', password: 'pass', baseUrl: 'https://custom.api.com' });
 
     expect(apiCoreInstances[0].config).toEqual({ apiKey: 'api-key', baseUrl: 'https://custom.api.com' });
   });
 
   it('does not set baseUrl on ApiCore when omitted', async () => {
-    const { createServer } = await import('../server.js');
+    const { createServer } = await import('../mcp-server.js');
     await createServer({ apiKey: 'api-key', username: 'user', password: 'pass' });
 
     expect(apiCoreInstances[0].config).not.toHaveProperty('baseUrl');
   });
 
   it('throws on missing credentials', async () => {
-    const { createServer } = await import('../server.js');
+    const { createServer } = await import('../mcp-server.js');
     await expect(
       createServer({ apiKey: 'api-key', username: 'user', password: '' }),
     ).rejects.toThrow('Missing authentication');

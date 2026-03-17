@@ -1,4 +1,4 @@
-import type { ServerContext } from '../server.js';
+import type { ServerContext } from '../mcp-server.js';
 import { topicsResource } from './topics.js';
 
 export const RESOURCE_DEFINITIONS = [topicsResource] as const;

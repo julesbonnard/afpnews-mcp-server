@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ServerContext } from '../server.js';
+import type { ServerContext } from '../mcp-server.js';
 import { afpSearchArticlesTool } from './search-articles.js';
 import { afpGetArticleTool } from './get-article.js';
 import { afpFindSimilarTool } from './find-similar.js';

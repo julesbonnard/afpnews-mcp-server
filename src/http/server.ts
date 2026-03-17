@@ -4,7 +4,7 @@ import { Elysia } from 'elysia';
 import { node } from '@elysiajs/node';
 import { rateLimit } from 'elysia-rate-limit';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createServer, type AfpAuthToken } from '../server.js';
+import { createServer, type AfpAuthToken } from '../mcp-server.js';
 import { deriveKey, encryptAfpToken, decryptAfpToken, encryptAfpRefreshToken, decryptAfpRefreshToken, type AfpTokenPayload } from './tokens.js';
 import { buildLoginPage, buildAllowedUris, isAllowedRedirectUri } from './login-page.js';
 
