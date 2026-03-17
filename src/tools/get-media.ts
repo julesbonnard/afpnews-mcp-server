@@ -79,12 +79,14 @@ export const afpGetMediaTool = {
   title: 'Get AFP Media Document',
   description: `Retrieve a complete AFP media document by UNO. Optionally embed the image as base64 for Claude vision analysis.
 
+Media classes: picture (photo), video, graphic (infographic/SVG), videography (video journalism).
+
 Args:
   - uno: AFP document UNO (e.g. newsml.afp.com.20260316T202634Z.doc-a3jc2qq)
   - embed: When true, fetches the image and returns it as a base64 MCP image block that Claude can see and analyse visually. Default: false.
   - rendition: Size to embed — 'thumbnail' (320px), 'preview' (1200px, default), 'highdef' (~3400px).
                Files > 5 MB are automatically downgraded to thumbnail.
-               Videos always use thumbnail (poster frame). SVG graphics cannot be embedded.
+               Videos and videography always use thumbnail (poster frame). SVG graphics cannot be embedded.
 
 Returns:
   - Without embed: full metadata + all rendition URLs
@@ -145,8 +147,12 @@ Returns:
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        const buffer = Buffer.from(await response.arrayBuffer());
-        imageData = buffer.toString('base64');
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const chunks: string[] = [];
+        for (let i = 0; i < bytes.length; i += 8192) {
+          chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+        }
+        imageData = btoa(chunks.join(''));
         // MIME priority: AFP type field → URL extension → HTTP Content-Type → fallback
         mimeType = inferMimeType(chosen.afpType, chosen.href);
         // Override with Content-Type from response if more specific

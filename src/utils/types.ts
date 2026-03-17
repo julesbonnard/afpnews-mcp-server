@@ -73,7 +73,7 @@ export interface ToolError {
 export type ToolResult = ToolSuccess | ToolError;
 
 export const EXCERPT_PARAGRAPH_COUNT = 4;
-export const CHARACTER_LIMIT = 25_000;
+export const CHARACTER_LIMIT = 100_000;
 export const DEFAULT_SEARCH_SIZE = 10;
 
 export const ALL_DOC_FIELDS = [

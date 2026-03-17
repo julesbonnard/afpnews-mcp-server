@@ -105,8 +105,8 @@ Examples:
 
       if (preset) {
         request = { ...request, ...SEARCH_PRESETS[preset] };
-        fullText = true;
       }
+      const effectiveFullText = preset ? true : fullText;
 
       const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
@@ -122,7 +122,7 @@ Examples:
 
       return formatDocumentOutput(documents, format, {
         fields: outputFields,
-        fullText,
+        fullText: effectiveFullText,
         jsonMeta: { total: count, offset: currentOffset },
         markdownPrefix: [textContent(buildPaginationLine(documents.length, count, currentOffset))],
       });

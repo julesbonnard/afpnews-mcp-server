@@ -6,8 +6,7 @@ The package can also be used as a library without MCP server glue via `afpnews-m
 
 ## Prerequisites
 
-- Node.js 22+
-- [pnpm](https://pnpm.io/)
+- [Bun](https://bun.sh/) 1.3+
 - An AFP API account (API key + username/password)
 
 ## Setup
@@ -15,8 +14,7 @@ The package can also be used as a library without MCP server glue via `afpnews-m
 ```bash
 git clone https://github.com/julesbonnard/afpnews-mcp-server.git
 cd afpnews-mcp-server
-pnpm install
-pnpm run build
+bun install
 ```
 
 Create a `.env` file:
@@ -37,8 +35,8 @@ For local MCP clients like Claude Code or Claude Desktop:
 {
   "mcpServers": {
     "afpnews": {
-      "command": "node",
-      "args": ["build/index.js"],
+      "command": "bun",
+      "args": ["src/index.ts"],
       "cwd": "/absolute/path/to/afpnews-mcp-server",
       "env": {
         "APICORE_API_KEY": "your-api-key",
@@ -52,22 +50,41 @@ For local MCP clients like Claude Code or Claude Desktop:
 
 ### HTTP transport
 
-For remote or multi-user deployments. Each session authenticates independently via HTTP Basic Auth (username/password are your AFP credentials).
+For remote or multi-user deployments. Users authenticate via OAuth2 PKCE using their AFP credentials.
 
-```bash
-MCP_TRANSPORT=http PORT=3000 pnpm run start
+Required environment variables for HTTP mode:
+
+```
+APICORE_API_KEY=your-api-key
+APICORE_BASE_URL=https://api.afp.com
+MCP_SERVER_URL=https://news-mcp.example.com
+JWT_SECRET=a-random-string-of-at-least-32-characters
+MCP_TRANSPORT=http
+PORT=3000
 ```
 
-Notes:
-- Keep `APICORE_API_KEY` set in the server environment (`.env` or runtime env).
-- If you expose the server remotely, use HTTPS.
+Optional:
+- `MCP_SESSION_TTL` — session duration in milliseconds (default: 3600000 = 1h)
+- `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs
+
+```bash
+bun src/index.ts
+```
+
+If you expose the server remotely, use HTTPS.
 
 ### Docker
 
 ```bash
-pnpm run build
 docker build -t afpnews-mcp .
-docker run -e APICORE_API_KEY=your-api-key -p 3000:3000 afpnews-mcp
+docker run \
+  -e APICORE_API_KEY=your-api-key \
+  -e APICORE_BASE_URL=https://api.afp.com \
+  -e MCP_SERVER_URL=https://news-mcp.example.com \
+  -e JWT_SECRET=your-secret-32-chars-minimum \
+  -e MCP_TRANSPORT=http \
+  -p 3000:3000 \
+  afpnews-mcp
 ```
 
 ### As a library (without MCP server dependency)
@@ -103,6 +120,8 @@ Each definition is framework-agnostic:
 | `afp_get_article` | Get a full article by its UNO identifier |
 | `afp_find_similar` | Find similar articles (More Like This) from a UNO |
 | `afp_list_facets` | List facet values (topics, genres, countries) with frequency counts |
+| `afp_search_media` | Search AFP media documents (photos, videos, graphics) |
+| `afp_get_media` | Get a full media document by UNO, with optional base64 image embed |
 
 ### Search presets
 
@@ -139,9 +158,8 @@ By default, `afp_search_articles` returns excerpts (first 4 paragraphs). Set `fu
 ## Development
 
 ```bash
-pnpm install
-pnpm run build
-pnpm test
+bun install
+bun test
 ```
 
 ## Internal Architecture
