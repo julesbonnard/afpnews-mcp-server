@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { formatDocument, MARKDOWN_API_FIELDS } from '../utils/format.js';
 import { FIXTURE_DOC, FIXTURE_DOC_MINIMAL } from './fixtures.js';
 

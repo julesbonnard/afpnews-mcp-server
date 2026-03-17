@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { resolveStdioAuthConfig } from '../index.js';
+import { describe, expect, it } from 'bun:test';
+import { resolveStdioAuthConfig } from '../stdio/server.js';
 
 describe('resolveStdioAuthConfig', () => {
   it('returns apiKey, username, password', () => {

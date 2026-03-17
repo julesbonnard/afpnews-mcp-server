@@ -1,18 +1,19 @@
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
-COPY tsconfig.json ./
-COPY src/ src/
-RUN pnpm run build
+FROM oven/bun:1.3.10-alpine
 
-FROM node:22-alpine
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile --prod
-COPY --from=builder /app/build/ build/
+
+# 1. Installer les deps
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+# 2. Copier le code de l’app
+COPY . .
+
+# 3. User non-root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
+
 ENV MCP_TRANSPORT=http
 EXPOSE 3000
-CMD ["node", "build/index.js"]
+
+CMD ["bun", "src/index.js"]

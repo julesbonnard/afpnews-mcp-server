@@ -1,20 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const {
-  authenticateMock,
-  apiCoreInstances,
-  registerToolsMock,
-  registerResourcesMock,
-  registerPromptsMock,
-} = vi.hoisted(() => ({
-  authenticateMock: vi.fn(),
-  apiCoreInstances: [] as Array<{ token?: unknown; config?: unknown }>,
-  registerToolsMock: vi.fn(),
-  registerResourcesMock: vi.fn(),
-  registerPromptsMock: vi.fn(),
-}));
+// Define shared mock functions at module scope
+const authenticateMock = mock();
+const apiCoreInstances: Array<{ token?: unknown; config?: unknown }> = [];
+const registerToolsMock = mock();
+const registerResourcesMock = mock();
+const registerPromptsMock = mock();
 
-vi.mock('afpnews-api', () => {
+// mock.module() is hoisted by bun:test before imports are resolved
+mock.module('afpnews-api', () => {
   class MockApiCore {
     token?: unknown;
     config?: unknown;
@@ -30,11 +24,12 @@ vi.mock('afpnews-api', () => {
   return { ApiCore: MockApiCore };
 });
 
-vi.mock('../tools/index.js', () => ({ registerTools: registerToolsMock }));
-vi.mock('../resources/index.js', () => ({ registerResources: registerResourcesMock }));
-vi.mock('../prompts/index.js', () => ({ registerPrompts: registerPromptsMock }));
+mock.module('../tools/index.js', () => ({ registerTools: registerToolsMock }));
+mock.module('../resources/index.js', () => ({ registerResources: registerResourcesMock }));
+mock.module('../prompts/index.js', () => ({ registerPrompts: registerPromptsMock }));
 
-import { createServer } from '../server.js';
+// Restore module mocks after all tests in this file
+afterAll(() => mock.restore());
 
 describe('createServer', () => {
   beforeEach(() => {
@@ -47,6 +42,8 @@ describe('createServer', () => {
   });
 
   it('authenticates with provided credentials', async () => {
+    // Dynamic import ensures mock.module() is active when the module is loaded
+    const { createServer } = await import('../mcp-server.js');
     await createServer({ apiKey: 'api-key', username: 'user', password: 'pass' });
 
     expect(apiCoreInstances).toHaveLength(1);
@@ -55,18 +52,21 @@ describe('createServer', () => {
   });
 
   it('passes baseUrl to ApiCore when provided', async () => {
+    const { createServer } = await import('../mcp-server.js');
     await createServer({ apiKey: 'api-key', username: 'user', password: 'pass', baseUrl: 'https://custom.api.com' });
 
     expect(apiCoreInstances[0].config).toEqual({ apiKey: 'api-key', baseUrl: 'https://custom.api.com' });
   });
 
   it('does not set baseUrl on ApiCore when omitted', async () => {
+    const { createServer } = await import('../mcp-server.js');
     await createServer({ apiKey: 'api-key', username: 'user', password: 'pass' });
 
     expect(apiCoreInstances[0].config).not.toHaveProperty('baseUrl');
   });
 
   it('throws on missing credentials', async () => {
+    const { createServer } = await import('../mcp-server.js');
     await expect(
       createServer({ apiKey: 'api-key', username: 'user', password: '' }),
     ).rejects.toThrow('Missing authentication');

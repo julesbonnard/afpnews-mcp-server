@@ -15,21 +15,9 @@ import {
   searchPresetEnum,
   outputFormatEnum,
   docFieldEnum,
+  facetParamValueSchema,
   UNO_FORMAT_NOTE,
 } from './shared.js';
-
-const facetParamValueSchema = z.union([
-  z.string(),
-  z.number(),
-  z.string().array(),
-  z.number().array(),
-  z.object({
-    in: z.union([z.string().array(), z.number().array()]).optional(),
-    exclude: z.union([z.string().array(), z.number().array()]).optional(),
-  }).refine((value) => value.in !== undefined || value.exclude !== undefined, {
-    message: "Facet filter object must include either 'in' or 'exclude'.",
-  }),
-]);
 
 const reservedFacetKeys = new Set([
   'preset',
@@ -78,7 +66,7 @@ Args:
   - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)
   - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
   - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
-            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, product, revision, created.
+            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created.
   - fullText: Return full article body (true) or excerpt only (false, default). Only applies to markdown. Presets override to true.
   - query: Search keywords (e.g. 'climate change')
   - size: Number of results (default 10, max 1000)
@@ -102,7 +90,7 @@ Examples:
   ) => {
     try {
       const facetFilters = {
-        product: ['news', 'factcheck'],
+        class: ['text'],
         genreid: GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };
@@ -117,8 +105,8 @@ Examples:
 
       if (preset) {
         request = { ...request, ...SEARCH_PRESETS[preset] };
-        fullText = true;
       }
+      const effectiveFullText = preset ? true : fullText;
 
       const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
@@ -134,7 +122,7 @@ Examples:
 
       return formatDocumentOutput(documents, format, {
         fields: outputFields,
-        fullText,
+        fullText: effectiveFullText,
         jsonMeta: { total: count, offset: currentOffset },
         markdownPrefix: [textContent(buildPaginationLine(documents.length, count, currentOffset))],
       });

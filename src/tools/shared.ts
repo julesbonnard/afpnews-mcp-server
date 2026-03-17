@@ -24,6 +24,27 @@ export const listPresetEnum = z.enum(LIST_PRESET_VALUES);
 
 export const langEnum = z.enum(['en', 'fr', 'de', 'pt', 'es', 'ar']);
 
+const MEDIA_CLASS_VALUES = ['picture', 'video', 'graphic', 'videography'] as const;
+export const mediaClassEnum = z.enum(MEDIA_CLASS_VALUES);
+export type MediaClass = z.infer<typeof mediaClassEnum>;
+
+const RENDITION_VALUES = ['thumbnail', 'preview', 'highdef'] as const;
+export const renditionEnum = z.enum(RENDITION_VALUES);
+export type RenditionKey = z.infer<typeof renditionEnum>;
+
+export const facetParamValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.string().array(),
+  z.number().array(),
+  z.object({
+    in: z.union([z.string().array(), z.number().array()]).optional(),
+    exclude: z.union([z.string().array(), z.number().array()]).optional(),
+  }).refine((v) => v.in !== undefined || v.exclude !== undefined, {
+    message: "Facet filter object must include either 'in' or 'exclude'.",
+  }),
+]);
+
 export const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -50,7 +71,7 @@ export const GENRE_EXCLUSIONS = {
 };
 
 interface PresetOverrides {
-  product?: string[];
+  class?: string[];
   lang?: string[];
   slug?: string[];
   dateFrom?: string;
@@ -60,7 +81,7 @@ interface PresetOverrides {
 
 export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
   'a-la-une': {
-    product: ['news'],
+    class: ['text'],
     lang: ['fr'],
     slug: ['afp', 'actualites'],
     dateFrom: 'now-1d',
@@ -68,17 +89,17 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
     genreid: GENRE_EXCLUSIONS,
   },
   'agenda': {
-    product: ['news'],
+    class: ['text'],
     size: 5,
     genreid: ['afpattribute:Agenda'],
   },
   'previsions': {
-    product: ['news'],
+    class: ['text'],
     size: 5,
     genreid: ['afpattribute:Program', 'afpedtype:TextProgram'],
   },
   'major-stories': {
-    product: ['news'],
+    class: ['text'],
     genreid: ['afpattribute:Article'],
   },
 };

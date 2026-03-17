@@ -30,8 +30,8 @@ Returns:
   Markdown-formatted article:
   - ## Headline
   - **UNO:** ...
-  - **Lang:** · **Genre:** · **Product:** · **Revision:**
-  - **Country:** · **City:** · **Slug:** (when available)
+  - **Lang:** · **Genre:** · **Class:** · **Revision:**
+  - **Country:** · **City:** · **Slug:** · **Event:** (when available)
   - **Status:** · **Signal:** · **Advisory:** (when present)
   - ---
   - Full article body (all paragraphs, no truncation)

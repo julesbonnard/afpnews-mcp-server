@@ -4,7 +4,7 @@ import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
 export const TRUNCATION_HINT = `\n\n---\n*Response truncated (exceeded ${CHARACTER_LIMIT} characters). Use a smaller \`size\` or add filters to reduce results.*`;
 
 /** Fields requested from the API when rendering markdown output. */
-export const MARKDOWN_API_FIELDS = ['uno', 'status', 'signal', 'advisory', 'headline', 'news', 'lang', 'genre'] as const;
+export const MARKDOWN_API_FIELDS = ['uno', 'status', 'signal', 'advisory', 'headline', 'news', 'lang', 'genre', 'event'] as const;
 
 export function escapeCsvValue(value: unknown): string {
   const str = Array.isArray(value) ? value.join('|') : String(value ?? '');
@@ -95,6 +95,7 @@ export function formatDocument(doc: unknown, fullText = false): TextContent {
   if (d.status) meta.push(`Status: ${d.status}`);
   if (d.signal) meta.push(`Signal: ${d.signal}`);
   if (d.advisory) meta.push(`Advisory: ${d.advisory}`);
+  if (d.event?.length) meta.push(`Event: ${d.event.join(', ')}`);
 
   const paragraphs = Array.isArray(d.news) ? d.news : [];
   const body = fullText
@@ -115,9 +116,9 @@ export function formatFullArticle(doc: unknown): TextContent {
 
   const lines: string[] = [];
   lines.push(row(['UNO', d.uno]));
-  lines.push(row(['Lang', d.lang], ['Genre', d.genre], ['Product', d.product], ['Revision', d.revision]));
+  lines.push(row(['Lang', d.lang], ['Genre', d.genre], ['Class', d['class']], ['Revision', d.revision]));
 
-  const extras = row(['Country', d.country], ['City', d.city], ['Slug', d.slug]);
+  const extras = row(['Country', d.country], ['City', d.city], ['Slug', d.slug], ['Event', d.event]);
   if (extras) lines.push(extras);
 
   const flags = row(['Status', d.status], ['Signal', d.signal], ['Advisory', d.advisory]);
