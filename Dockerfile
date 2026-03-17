@@ -1,18 +1,18 @@
-FROM node:22-alpine AS builder
+FROM oven/bun:1.3.10-alpine AS builder
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src/ src/
-RUN pnpm run build
+RUN bun run build
 
-FROM node:22-alpine
+FROM oven/bun:1.3.10-alpine
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile --prod
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
 COPY --from=builder /app/build/ build/
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 ENV MCP_TRANSPORT=http
 EXPOSE 3000
-CMD ["node", "build/index.js"]
+CMD ["bun", "run", "build/index.js"]
