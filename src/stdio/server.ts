@@ -1,7 +1,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createServer } from '../mcp-server.js';
 
-export type StdioAuthConfig = { apiKey: string; username: string; password: string; baseUrl?: string };
+type StdioAuthConfig = { apiKey: string; username: string; password: string; baseUrl?: string };
 
 export function resolveStdioAuthConfig(env: NodeJS.ProcessEnv = process.env): StdioAuthConfig {
   const apiKey = env.APICORE_API_KEY?.trim();
