@@ -12,7 +12,7 @@
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/__tests__/format.test.ts src/__tests__/index-auth.test.ts src/__tests__/server.test.ts && bun test src/__tests__/create-server.test.ts"
+    "test": "bun test src/__tests__/format.test.ts src/__tests__/format-media.test.ts src/__tests__/types-media.test.ts src/__tests__/index-auth.test.ts src/__tests__/server.test.ts src/__tests__/get-media.test.ts && bun test src/__tests__/create-server.test.ts"
   },
   "keywords": [],
   "author": "",
