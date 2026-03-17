@@ -22,8 +22,46 @@ export interface TextContent {
   text: string;
 }
 
+export interface MediaRendition {
+  href: string;
+  width: number;
+  height: number;
+  sizeInBytes?: number;
+  afpType?: string;  // AFP 'type' field (e.g. 'Photo', 'Graphic') — used for MIME type inference
+}
+
+export interface MediaRenditions {
+  thumbnail?: MediaRendition;
+  preview?: MediaRendition;
+  highdef?: MediaRendition;
+}
+
+export interface AFPMediaDocument {
+  uno: string;
+  title?: string;
+  caption?: string;
+  creditLine?: string;
+  creator?: string;
+  country?: string;
+  city?: string;
+  published?: string;
+  urgency?: number;
+  class?: string;
+  aspectRatios?: string[];
+  advisory?: string;
+  renditions: MediaRenditions;
+}
+
+export interface ImageContent {
+  type: 'image';
+  data: string;
+  mimeType: string;
+}
+
+export type AnyContent = TextContent | ImageContent;
+
 export interface ToolSuccess {
-  content: TextContent[];
+  content: AnyContent[];
 }
 
 export interface ToolError {
