@@ -1,5 +1,5 @@
 import type { AFPMediaDocument, MediaRenditions, MediaRendition, TextContent } from './types.js';
-import { textContent, truncateToLimit } from './format.js';
+import { textContent, truncateToLimit, truncateContentItems, truncationHint } from './format.js';
 
 // Mapping role AFP → clé normalisée (utilise m.role, pas m.rendition)
 // Preview est prioritaire sur Preview_B/Preview_W (premier match gagne)
@@ -13,7 +13,8 @@ export const MEDIA_RENDITION_ROLE_MAP: Record<string, keyof MediaRenditions> = {
 
 export function extractRenditions(bagItem: unknown): MediaRenditions {
   if (!Array.isArray(bagItem) || bagItem.length === 0) return {};
-  const medias: any[] = (bagItem[0] as any)?.medias ?? [];
+  const first = bagItem[0] as Record<string, unknown> | undefined;
+  const medias = (Array.isArray(first?.medias) ? first.medias : []) as Record<string, unknown>[];
   const result: MediaRenditions = {};
 
   for (const m of medias) {
@@ -21,11 +22,11 @@ export function extractRenditions(bagItem: unknown): MediaRenditions {
     if (!key) continue;
     if (result[key]) continue; // ne pas écraser (Preview prioritaire sur Preview_B/W)
     result[key] = {
-      href: m.href,
-      width: m.width,
-      height: m.height,
-      sizeInBytes: m.sizeInBytes,
-      afpType: m.type,  // e.g. 'Photo', 'Graphic' — used for MIME type inference
+      href: m.href as string,
+      width: m.width as number,
+      height: m.height as number,
+      sizeInBytes: m.sizeInBytes as number | undefined,
+      afpType: m.type as string | undefined,
     } satisfies MediaRendition;
   }
 
@@ -49,9 +50,13 @@ export function formatMediaDocument(doc: Partial<AFPMediaDocument> & { uno: stri
   const { thumbnail, preview, highdef } = doc.renditions;
   const caption = doc.caption ?? '';
 
-  const displayRendition = preview ?? thumbnail;
-  if (displayRendition) {
-    lines.push(`![${caption}](${displayRendition.href})`);
+  if (thumbnail) {
+    lines.push(`![${caption}](${thumbnail.href})`);
+    lines.push('');
+  }
+
+  if (preview) {
+    lines.push(`[Preview ${preview.width}px](${preview.href})`);
     lines.push('');
   }
 
@@ -67,23 +72,43 @@ export function formatMediaDocument(doc: Partial<AFPMediaDocument> & { uno: stri
   return textContent(lines.join('\n').trimEnd());
 }
 
+export function normalizeMediaDocument(raw: unknown): AFPMediaDocument {
+  const d = raw as Record<string, unknown>;
+  return {
+    uno: d.uno as string,
+    title: d.title as string | undefined,
+    caption: Array.isArray(d.caption) ? d.caption[0] as string : d.caption as string | undefined,
+    creditLine: d.creditLine as string | undefined,
+    creator: d.creator as string | undefined,
+    country: d.country as string | undefined,
+    city: d.city as string | undefined,
+    published: d.published as string | undefined,
+    urgency: d.urgency as number | undefined,
+    class: d.class as string | undefined,
+    aspectRatios: d.aspectRatios as string[] | undefined,
+    advisory: d.advisory as string | undefined,
+    renditions: extractRenditions(d.bagItem ?? []),
+  };
+}
+
 export function formatMediaDocumentsAsJson(
   docs: AFPMediaDocument[],
   meta: Record<string, unknown> = {},
-): { content: TextContent; truncated: boolean } {
-  const { text, truncated } = truncateToLimit(
+): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
+  const { text, count, truncated, remaining } = truncateToLimit(
     docs,
     (slice) => JSON.stringify({
       ...meta,
       shown: slice.length,
       truncated: slice.length < docs.length,
+      remaining: docs.length - slice.length,
       documents: slice,
     }, null, 2),
   );
-  return { content: textContent(text), truncated };
+  return { content: textContent(text), shown: count, truncated, remaining };
 }
 
-export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: TextContent; truncated: boolean } {
+export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
   const header = 'uno,title,caption,creditLine,published,class,thumbnail_href';
   const escape = (v: unknown) => {
     const str = String(v ?? '');
@@ -100,9 +125,35 @@ export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: 
     escape(d.renditions.thumbnail?.href),
   ].join(','));
 
-  const { text, truncated } = truncateToLimit(
+  const { text, count, truncated, remaining } = truncateToLimit(
     rows,
     (slice) => [header, ...slice].join('\n'),
   );
-  return { content: textContent(text), truncated };
+  return { content: textContent(text), shown: count, truncated, remaining };
+}
+
+export function formatMediaOutput(
+  docs: AFPMediaDocument[],
+  format: string,
+  opts: {
+    jsonMeta?: Record<string, unknown>;
+    markdownPrefix?: TextContent[] | ((shown: number) => TextContent[]);
+  } = {},
+): { content: TextContent[]; shown: number; truncated: boolean; remaining: number } {
+  if (format === 'json') {
+    const { content, shown, truncated, remaining } = formatMediaDocumentsAsJson(docs, opts.jsonMeta);
+    return { content: [content], shown, truncated, remaining };
+  }
+
+  if (format === 'csv') {
+    const { content, shown, truncated, remaining } = formatMediaDocumentsAsCsv(docs);
+    const result: TextContent[] = [content];
+    if (truncated) result.push(textContent(truncationHint(remaining)));
+    return { content: result, shown, truncated, remaining };
+  }
+
+  return truncateContentItems(
+    opts.markdownPrefix ?? [],
+    docs.map(formatMediaDocument),
+  );
 }

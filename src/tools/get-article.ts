@@ -39,7 +39,7 @@ Returns:
 Example:
   { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e" }`,
   inputSchema,
-  handler: async (apicore: ApiCore, { uno }: GetArticleInput) => {
+  handler: async (apicore: Pick<ApiCore, 'get'>, { uno }: GetArticleInput) => {
     try {
       const doc = await apicore.get(uno);
       return { content: [formatFullArticle(doc)] };

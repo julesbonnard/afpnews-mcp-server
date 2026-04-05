@@ -38,10 +38,10 @@ describe('formatDocument', () => {
     expect(result.text).not.toContain('Advisory:');
   });
 
-  it('truncates to 4 paragraphs when fullText=false', () => {
+  it('truncates to 2 paragraphs when fullText=false', () => {
     const result = formatDocument(FIXTURE_DOC, false);
-    expect(result.text).toContain('Fourth paragraph wraps up.');
-    expect(result.text).not.toContain('Fifth paragraph is extra content.');
+    expect(result.text).toContain('Second paragraph with more details.');
+    expect(result.text).not.toContain('Third paragraph continues.');
   });
 
   it('includes all paragraphs when fullText=true', () => {

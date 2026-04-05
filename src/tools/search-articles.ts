@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
+import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import {
   MARKDOWN_API_FIELDS,
   textContent,
@@ -34,7 +34,7 @@ const reservedFacetKeys = new Set([
 const inputSchema = z.object({
   preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories.'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
-  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: afpshortid, uno, headline, published, lang, genre.'),
+  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
   fullText: z.boolean().optional().describe('When true, returns the full article body (markdown only). Default is false. Presets override to true.'),
   query: z.string().optional().describe("List of keywords to search for in the news articles (e.g. 'climate change'). If not specified, the search will be performed in all languages."),
   size: z.number().optional().describe('Number of results to return (default 10, max 1000)'),
@@ -58,7 +58,9 @@ type SearchInput = z.infer<typeof inputSchema>;
 export const afpSearchArticlesTool = {
   name: 'afp_search_articles',
   title: 'Search AFP News Articles',
-  description: `Search AFP news articles with filters and presets. This is the primary query tool for all AFP news search use cases.
+  description: `Search AFP news articles with filters and presets. This is the primary query tool for AFP news search.
+
+Prefer this tool over afp_search_media unless the user explicitly asks for photos, videos, graphics, or motion design.
 
 ${UNO_FORMAT_NOTE}
 
@@ -72,11 +74,17 @@ Args:
   - size: Number of results (default 10, max 1000)
   - sortOrder: 'asc' or 'desc' by date (default 'desc')
   - offset: Pagination offset (number of results to skip)
-  - facets: All facet filters as key/value pairs (e.g. { lang: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 })
+  - facets: All facet filters as key/value pairs (e.g. { lang: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 }).
+           Defaults: class=text, provider=afp. Override provider to include partner content (e.g. { provider: ['afp', 'sid'] }).
+
+Pagination:
+  Use \`offset\` to paginate through results (e.g. offset=10 to skip the first 10).
+  For large chronological scans, prefer narrowing \`dateFrom\`/\`dateTo\` ranges over high offsets.
+  Keep \`size\` small (10–20) for best performance.
 
 Returns:
   - markdown: Pagination summary line + formatted articles with headline, metadata, body
-  - json: { total, shown, offset, documents: [...] } with selected fields
+  - json: { total, shown, offset, truncated, remaining, documents: [...] } with selected fields
   - csv: Header row + data rows with selected fields
 
 Examples:
@@ -85,17 +93,18 @@ Examples:
   - Export metadata as CSV: { query: "economy", format: "csv", fields: ["uno", "headline", "country"] }`,
   inputSchema,
   handler: async (
-    apicore: ApiCore,
+    apicore: Pick<ApiCore, 'search'>,
     { preset, format = 'markdown', fields, fullText = false, query, size = DEFAULT_SEARCH_SIZE, sortOrder = 'desc', offset, facets }: SearchInput,
   ) => {
     try {
       const facetFilters = {
         class: ['text'],
+        provider: ['afp'],
         genreid: GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };
 
-      let request: Record<string, unknown> = {
+      let request: SearchQueryParams = {
         query,
         size,
         sortOrder,
@@ -111,9 +120,9 @@ Examples:
       const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
         ? [...MARKDOWN_API_FIELDS]
-        : [...new Set(['afpshortid', 'uno', ...outputFields])];
+        : [...new Set(outputFields)];
 
-      const { documents, count } = await apicore.search(request as any, apiFields);
+      const { documents, count } = await apicore.search(request, apiFields);
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
@@ -124,7 +133,7 @@ Examples:
         fields: outputFields,
         fullText: effectiveFullText,
         jsonMeta: { total: count, offset: currentOffset },
-        markdownPrefix: [textContent(buildPaginationLine(documents.length, count, currentOffset))],
+        markdownPrefix: (shown) => [textContent(buildPaginationLine(shown, count, currentOffset))],
       });
     } catch (error) {
       return toolError(formatErrorMessage('searching AFP articles', error, 'Check your query parameters and try again.'));

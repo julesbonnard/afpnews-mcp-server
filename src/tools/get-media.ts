@@ -47,7 +47,7 @@ const inputSchema = z.object({
 
 type GetMediaInput = z.infer<typeof inputSchema>;
 
-function formatFullMediaText(doc: any, renditions: MediaRenditions, note?: string): string {
+function formatFullMediaText(doc: Record<string, unknown>, renditions: MediaRenditions, note?: string): string {
   const lines: string[] = [];
   if (doc.title) lines.push(`## ${doc.title}`);
   lines.push(`**UNO:** ${doc.uno}`);
@@ -57,7 +57,8 @@ function formatFullMediaText(doc: any, renditions: MediaRenditions, note?: strin
   if (doc.published)  lines.push(`**Published:** ${doc.published}`);
   if (doc.country || doc.city) lines.push(`**Location:** ${[doc.city, doc.country].filter(Boolean).join(', ')}`);
   if (doc.urgency != null) lines.push(`**Urgency:** ${doc.urgency}`);
-  if (doc.aspectRatios?.length) lines.push(`**Aspect:** ${doc.aspectRatios.join(', ')}`);
+  const aspectRatios = doc.aspectRatios as string[] | undefined;
+  if (aspectRatios?.length) lines.push(`**Aspect:** ${aspectRatios.join(', ')}`);
 
   const caption = Array.isArray(doc.caption) ? doc.caption[0] : doc.caption;
   if (caption) lines.push(`\n${caption}`);
@@ -93,14 +94,15 @@ Returns:
   - With embed: metadata + MCP image block (Claude can analyse the image)`,
   inputSchema,
   handler: async (
-    apicore: ApiCore,
+    apicore: Pick<ApiCore, 'get'>,
     { uno, embed = false, rendition: requestedRendition = 'preview' }: GetMediaInput,
   ) => {
     try {
-      const doc = await apicore.get(uno) as any;
-      if (!doc) {
+      const raw = await apicore.get(uno);
+      if (!raw) {
         return toolError(`Media document not found: ${uno}`);
       }
+      const doc = raw as Record<string, unknown>;
 
       const renditions = extractRenditions(doc.bagItem ?? []);
       const metadataText = textContent(formatFullMediaText(doc, renditions));

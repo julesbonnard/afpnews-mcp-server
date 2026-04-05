@@ -1,13 +1,10 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
-import { textContent, toolError, TRUNCATION_HINT, buildPaginationLine } from '../utils/format.js';
+import type { ApiCore, SearchQueryParams } from 'afpnews-api';
+import { textContent, toolError, buildPaginationLine } from '../utils/format.js';
 import {
-  formatMediaDocument,
-  formatMediaDocumentsAsJson,
-  formatMediaDocumentsAsCsv,
-  extractRenditions,
+  formatMediaOutput,
+  normalizeMediaDocument,
 } from '../utils/format-media.js';
-import type { AFPMediaDocument } from '../utils/types.js';
 import { DEFAULT_SEARCH_SIZE } from '../utils/types.js';
 import {
   mediaClassEnum,
@@ -48,28 +45,12 @@ const inputSchema = z.object({
 
 type SearchMediaInput = z.infer<typeof inputSchema>;
 
-function buildMediaDocument(raw: any): AFPMediaDocument {
-  return {
-    uno: raw.uno,
-    title: raw.title,
-    caption: Array.isArray(raw.caption) ? raw.caption[0] : raw.caption,
-    creditLine: raw.creditLine,
-    creator: raw.creator,
-    country: raw.country,
-    city: raw.city,
-    published: raw.published,
-    urgency: raw.urgency,
-    class: raw.class,
-    aspectRatios: raw.aspectRatios,
-    advisory: raw.advisory,
-    renditions: extractRenditions(raw.bagItem ?? []),
-  };
-}
-
 export const afpSearchMediaTool = {
   name: 'afp_search_media',
   title: 'Search AFP Media (Photos, Videos, Graphics)',
   description: `Search AFP media documents: photos, videos, infographics, and motion design.
+
+Use this tool only when the user explicitly asks for media assets. For general news retrieval, prefer afp_search_articles.
 
 Media classes:
   - picture: AFP photos. Captions are always in English — do not filter by lang, or use lang=en.
@@ -84,10 +65,15 @@ Args:
   - offset: Pagination offset
   - sortOrder: 'asc' or 'desc' (default 'desc')
   - format: markdown (default, with inline thumbnails), json (structured with rendition URLs), csv
-  - facets: Additional AFP filters (e.g. { lang: ['fr'], country: ['fra'], dateFrom: '2026-01-01' })
+  - facets: Additional AFP filters (e.g. { lang: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }).
+           Defaults: provider=afp. Override provider only when partner media is explicitly needed.
+
+Pagination:
+  Use \`offset\` to paginate (e.g. offset=10 to skip the first 10).
+  Keep \`size\` small (10–20) for best performance.
 
 Returns (json):
-  { total, shown, offset, truncated, documents: [{ uno, title, caption, creditLine, creator,
+  { total, shown, offset, truncated, remaining, documents: [{ uno, title, caption, creditLine, creator,
     country, city, published, urgency, class, aspectRatios, advisory,
     renditions: { thumbnail, preview, highdef } }] }
 
@@ -103,51 +89,33 @@ Examples:
   - Export gallery CSV: { class: "picture", query: "Paris", format: "csv" }`,
   inputSchema,
   handler: async (
-    apicore: ApiCore,
+    apicore: Pick<ApiCore, 'search'>,
     { class: mediaClass, query, size = DEFAULT_SEARCH_SIZE, offset, sortOrder = 'desc', format = 'markdown', facets }: SearchMediaInput,
   ) => {
     try {
       const classFilter = mediaClass ? [mediaClass] : ['picture', 'video', 'graphic', 'videography'];
-      const request: Record<string, unknown> = {
+      const request: SearchQueryParams = {
         query,
         size,
         sortOrder,
         startAt: offset,
         class: classFilter,
+        provider: ['afp'],
         ...(facets ?? {}),
       };
 
-      const { documents: rawDocs, count } = await apicore.search(request as any, [...MEDIA_API_FIELDS]);
+      const { documents: rawDocs, count } = await apicore.search(request, [...MEDIA_API_FIELDS]);
 
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
-      const docs = (rawDocs as any[]).map(buildMediaDocument);
+      const docs = rawDocs.map(normalizeMediaDocument);
       const currentOffset = offset ?? 0;
-
-      if (format === 'json') {
-        const { content, truncated } = formatMediaDocumentsAsJson(docs, { total: count, offset: currentOffset });
-        const result = [content];
-        if (truncated) result.push(textContent(TRUNCATION_HINT));
-        return { content: result };
-      }
-
-      if (format === 'csv') {
-        const { content, truncated } = formatMediaDocumentsAsCsv(docs);
-        const result = [content];
-        if (truncated) result.push(textContent(TRUNCATION_HINT));
-        return { content: result };
-      }
-
-      // markdown
-      const items = docs.map(formatMediaDocument);
-      return {
-        content: [
-          textContent(buildPaginationLine(docs.length, count, currentOffset)),
-          ...items,
-        ],
-      };
+      return formatMediaOutput(docs, format, {
+        jsonMeta: { total: count, offset: currentOffset },
+        markdownPrefix: (shown) => [textContent(buildPaginationLine(shown, count, currentOffset))],
+      });
     } catch (error) {
       return toolError(formatErrorMessage('searching AFP media', error, 'Check your query parameters and try again.'));
     }

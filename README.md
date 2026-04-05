@@ -138,7 +138,11 @@ The `afp_search_articles` tool supports presets that apply predefined filters:
 
 ### Full text
 
-By default, `afp_search_articles` returns excerpts (first 4 paragraphs). Set `fullText: true` to get the complete article body. Presets default to full text.
+By default, `afp_search_articles` returns excerpts (first 2 paragraphs). Set `fullText: true` to get the complete article body. Presets default to full text.
+
+### Pagination
+
+Use `offset` to paginate through results (e.g. `offset: 10` to skip the first 10). For large chronological scans, prefer narrowing `dateFrom`/`dateTo` ranges in `facets` over high offsets. Keep `size` small (10–20) for best performance.
 
 ## Prompts
 

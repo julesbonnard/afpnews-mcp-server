@@ -12,14 +12,17 @@
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/__tests__/format.test.ts src/__tests__/format-media.test.ts src/__tests__/types-media.test.ts src/__tests__/index-auth.test.ts src/__tests__/server.test.ts src/__tests__/get-media.test.ts && bun test src/__tests__/create-server.test.ts"
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "test": "bun test src/__tests__/",
+    "test:coverage": "bun test --coverage --coverage-reporter=text src/__tests__/",
+    "test:coverage:lcov": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir coverage src/__tests__/"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "bun@1.3.11",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "elysia": "^1.4.28",
     "elysia-rate-limit": "^4.5.1",
     "jose": "^6.2.2"
@@ -29,7 +32,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "afpnews-api": "^2.4.1",
     "zod": "^4.3.6"
   }

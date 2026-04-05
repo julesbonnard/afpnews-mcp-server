@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
-import { escapeCsvValue, textContent, toolError, truncateToLimit, TRUNCATION_HINT } from '../utils/format.js';
+import type { ApiCore, SearchQueryParams } from 'afpnews-api';
+import { escapeCsvValue, textContent, toolError, truncateToLimit, truncationHint } from '../utils/format.js';
 import {
   type FacetResult,
   formatErrorMessage,
@@ -42,7 +42,7 @@ Examples:
   - List available genres as CSV: { facet: "genre", format: "csv" }
   - List countries as JSON: { facet: "country", size: 30, format: "json" }`,
   inputSchema,
-  handler: async (apicore: ApiCore, { preset, facet, lang, size, format = 'markdown' }: ListFacetsInput) => {
+  handler: async (apicore: Pick<ApiCore, 'list'>, { preset, facet, lang, size, format = 'markdown' }: ListFacetsInput) => {
     try {
       const isTrendingTopics = preset === 'trending-topics';
       const resolvedFacet = isTrendingTopics ? 'slug' : facet;
@@ -52,41 +52,46 @@ Examples:
       }
 
       const resolvedSize = size ?? 10;
-      const params: Record<string, unknown> = isTrendingTopics
-        ? { langs: [lang ?? 'fr'], class: ['text'], dateFrom: 'now-1d', size: resolvedSize }
-        : { ...(lang ? { langs: [lang] } : {}), size: resolvedSize };
+      const params: SearchQueryParams = isTrendingTopics
+        ? { langs: [lang ?? 'fr'], class: ['text'], provider: ['afp'], dateFrom: 'now-1d', size: resolvedSize }
+        : { class: ['text'], provider: ['afp'], ...(lang ? { langs: [lang] } : {}), size: resolvedSize };
 
-      const rawResult = await apicore.list(resolvedFacet, params as any, 1) as any;
-      const results: FacetResult[] = rawResult?.keywords ?? rawResult ?? [];
+      const { keywords } = await apicore.list(resolvedFacet, params, 1);
+      const results: FacetResult[] = keywords.map(k => ({ name: k.name ?? '', count: k.count }));
 
       if (results.length === 0) {
         return { content: [textContent(`No facet values found for "${resolvedFacet}".`)] };
       }
 
       if (format === 'json') {
-        const { text, truncated } = truncateToLimit(
+        const { text, truncated, remaining } = truncateToLimit(
           results,
           (slice) => JSON.stringify(slice, null, 2),
         );
         const content = [textContent(text)];
-        if (truncated) content.push(textContent(TRUNCATION_HINT));
+        if (truncated) content.push(textContent(truncationHint(remaining)));
         return { content };
       }
 
       if (format === 'csv') {
         const rows = results.map(r => `${escapeCsvValue(r.name)},${r.count}`);
-        const { text, truncated } = truncateToLimit(
+        const { text, truncated, remaining } = truncateToLimit(
           rows,
           (slice) => ['name,count', ...slice].join('\n'),
         );
         const content = [textContent(text)];
-        if (truncated) content.push(textContent(TRUNCATION_HINT));
+        if (truncated) content.push(textContent(truncationHint(remaining)));
         return { content };
       }
 
       const heading = isTrendingTopics ? 'Trending Topics' : `Facet: ${resolvedFacet}`;
-      const lines = results.map((item) => `- **${item.name}** — ${item.count} articles`);
-      return { content: [textContent(`## ${heading}\n\n${lines.join('\n')}`)] };
+      const { text, truncated, remaining } = truncateToLimit(
+        results,
+        (slice) => `## ${heading}\n\n${slice.map((item) => `- **${item.name}** — ${item.count} articles`).join('\n')}`,
+      );
+      const content = [textContent(text)];
+      if (truncated) content.push(textContent(truncationHint(remaining)));
+      return { content };
     } catch (error) {
       return toolError(formatErrorMessage('listing facet values', error, "Check that the facet name is valid (e.g. 'slug', 'genre', 'country')."));
     }

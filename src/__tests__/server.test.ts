@@ -5,6 +5,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { registerTools } from '../tools/index.js';
 import { registerResources } from '../resources/index.js';
 import { registerPrompts } from '../prompts/index.js';
+import type { ServerContext } from '../mcp-server.js';
 import { FIXTURE_DOC, makeDocs } from './fixtures.js';
 
 function createMockApicore() {
@@ -12,7 +13,7 @@ function createMockApicore() {
     search: mock().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
     get: mock().mockResolvedValue(makeDocs(1)[0]),
     mlt: mock().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
-    list: mock().mockResolvedValue([{ name: 'economy', count: 42 }]),
+    list: mock().mockResolvedValue({ keywords: [{ name: 'economy', count: 42 }] }),
   };
 }
 
@@ -20,10 +21,21 @@ function getText(result: any, index = 0): string {
   return (result.content[index] as { type: string; text: string }).text;
 }
 
+function makeLargeDocs(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    uno: `AFP-LARGE-${String(i + 1).padStart(4, '0')}`,
+    headline: `Article ${i + 1} ${'H'.repeat(180)}`,
+    published: '2026-02-14T10:00:00Z',
+    lang: 'fr',
+    genre: 'news',
+    news: [`Paragraph ${i + 1} ${'B'.repeat(700)}`],
+  }));
+}
+
 async function setupServer() {
   const server = new McpServer({ name: 'test', version: '0.0.1' });
   const apicore = createMockApicore();
-  const ctx = { server, apicore } as any;
+  const ctx = { server, apicore } as ServerContext;
 
   registerTools(ctx);
   registerResources(ctx);
@@ -74,8 +86,8 @@ describe('MCP integration', () => {
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
       // pagination line + 1 document
       const msg = result.content![1] as { type: string; text: string };
-      expect(msg.text).toContain('Fourth paragraph wraps up.');
-      expect(msg.text).not.toContain('Fifth paragraph is extra content.');
+      expect(msg.text).toContain('Second paragraph with more details.');
+      expect(msg.text).not.toContain('Third paragraph continues.');
     });
 
     it('returns full text when fullText=true', async () => {
@@ -141,7 +153,8 @@ describe('MCP integration', () => {
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
       const pagination = result.content![0] as { type: string; text: string };
       expect(pagination.text).toContain('Showing 3 of 10 results');
-      expect(pagination.text).toContain('offset=3');
+      expect(pagination.text).toContain('offset: 0');
+      expect(pagination.text).toContain('offset: 3');  // suggests next offset
     });
 
     it('returns isError on API failure', async () => {
@@ -188,20 +201,18 @@ describe('MCP integration', () => {
     });
 
     it('truncates json when exceeding character limit', async () => {
-      const largeDocs = makeDocs(400);
+      const largeDocs = makeLargeDocs(400);
       apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 400 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json' } });
       const parsed = JSON.parse(getText(result));
       expect(parsed.truncated).toBe(true);
       expect(parsed.shown).toBeLessThan(400);
       expect(parsed.total).toBe(400);
-      // Should have a truncation hint as second content block
-      expect(result.content).toHaveLength(2);
-      expect(getText(result, 1)).toContain('truncated');
+      expect(parsed.remaining).toBe(400 - parsed.shown);
     });
 
     it('truncates csv when exceeding character limit', async () => {
-      const largeDocs = makeDocs(800);
+      const largeDocs = makeLargeDocs(800);
       apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 800 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv' } });
       const lines = getText(result).split('\n');
@@ -323,7 +334,7 @@ describe('MCP integration', () => {
 
       const [facet, params] = apicore.list.mock.calls.at(-1)!;
       expect(facet).toBe('slug');
-      expect(params).toMatchObject({ langs: ['fr'], class: ['text'], dateFrom: 'now-1d' });
+      expect(params).toMatchObject({ langs: ['fr'], class: ['text'], provider: ['afp'], dateFrom: 'now-1d' });
     });
 
     it('returns isError on API failure', async () => {
@@ -352,7 +363,7 @@ describe('MCP integration', () => {
     it('topics resource returns catalog', async () => {
       const result = await client.readResource({ uri: 'afp://topics' });
       expect(result.contents).toHaveLength(1);
-      const parsed = JSON.parse(result.contents[0].text as string);
+      const parsed = JSON.parse((result.contents[0] as { text: string }).text);
       expect(parsed).toHaveProperty('fr');
       expect(parsed).toHaveProperty('en');
     });

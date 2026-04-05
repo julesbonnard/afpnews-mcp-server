@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, formatMediaDocumentsAsCsv, MEDIA_RENDITION_ROLE_MAP } from '../utils/format-media.js';
 
 // Fixture bagItem reprenant la structure réelle AFP
@@ -148,7 +148,7 @@ describe('formatMediaDocumentsAsCsv', () => {
       class: 'picture',
       renditions: { thumbnail: { href: 'https://example.com/t.jpg', width: 320, height: 213 } },
     }];
-    const r = formatMediaDocumentsAsCsv(docs as any);
+    const r = formatMediaDocumentsAsCsv(docs);
     expect(r.content.text).toContain('newsml.test');
     expect(r.content.text).toContain('My Photo');
     expect(r.content.text).toContain('JANE / AFP');
@@ -161,13 +161,13 @@ describe('formatMediaDocumentsAsCsv', () => {
       caption: 'A caption, with "quotes"',
       renditions: {},
     }];
-    const r = formatMediaDocumentsAsCsv(docs as any);
+    const r = formatMediaDocumentsAsCsv(docs);
     expect(r.content.text).toContain('"A caption, with ""quotes"""');
   });
 
   it('handles missing thumbnail href gracefully', () => {
     const docs = [{ uno: 'newsml.test', renditions: {} }];
-    const r = formatMediaDocumentsAsCsv(docs as any);
+    const r = formatMediaDocumentsAsCsv(docs);
     expect(r.content.text).toContain('newsml.test');
   });
 });
@@ -179,13 +179,13 @@ describe('formatMediaDocumentsAsJson', () => {
   ];
 
   it('returns { content: TextContent, truncated: boolean }', () => {
-    const r = formatMediaDocumentsAsJson(docs as any);
+    const r = formatMediaDocumentsAsJson(docs);
     expect(r.content.type).toBe('text');
     expect(typeof r.truncated).toBe('boolean');
   });
 
   it('output JSON contains total metadata and documents array', () => {
-    const r = formatMediaDocumentsAsJson(docs as any, { total: 100, offset: 0 });
+    const r = formatMediaDocumentsAsJson(docs, { total: 100, offset: 0 });
     const parsed = JSON.parse(r.content.text);
     expect(parsed.total).toBe(100);
     expect(parsed.offset).toBe(0);
@@ -196,7 +196,7 @@ describe('formatMediaDocumentsAsJson', () => {
   });
 
   it('truncated flag is false when content is small', () => {
-    const r = formatMediaDocumentsAsJson(docs as any, { total: 100, offset: 0 });
+    const r = formatMediaDocumentsAsJson(docs, { total: 100, offset: 0 });
     expect(r.truncated).toBe(false);
   });
 
@@ -208,7 +208,7 @@ describe('formatMediaDocumentsAsJson', () => {
       caption: 'A very long caption that also takes up considerable space in the JSON output here',
       renditions: { thumbnail: { href: `https://example.com/thumb-${i}.jpg`, width: 320, height: 213 } },
     }));
-    const r = formatMediaDocumentsAsJson(largeDocs as any, { total: 500, offset: 0 });
+    const r = formatMediaDocumentsAsJson(largeDocs, { total: 500, offset: 0 });
     expect(r.truncated).toBe(true);
     const parsed = JSON.parse(r.content.text);
     expect(parsed.shown).toBeLessThan(500);
