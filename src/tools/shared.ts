@@ -72,7 +72,7 @@ export const GENRE_EXCLUSIONS = {
 
 interface PresetOverrides {
   class?: string[];
-  lang?: string[];
+  langs?: string[];
   slug?: string[];
   dateFrom?: string;
   size?: number;
@@ -82,7 +82,7 @@ interface PresetOverrides {
 export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
   'a-la-une': {
     class: ['text'],
-    lang: ['fr'],
+    langs: ['fr'],
     slug: ['afp', 'actualites'],
     dateFrom: 'now-1d',
     size: 1,

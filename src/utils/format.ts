@@ -127,11 +127,9 @@ function truncateContentItemsWithPrefix(
 export function formatDocument(doc: unknown, fullText = false): TextContent {
   const d = doc as AFPDocument;
 
-  const meta: string[] = [
-    `UNO: ${d.uno}`,
-    `Lang: ${d.lang}`,
-    `Genre: ${d.genre}`,
-  ];
+  const meta: string[] = [`UNO: ${d.uno}`];
+  if (d.lang) meta.push(`Lang: ${d.lang}`);
+  if (d.genre) meta.push(`Genre: ${d.genre}`);
   if (d.status) meta.push(`Status: ${d.status}`);
   if (d.signal) meta.push(`Signal: ${d.signal}`);
   if (d.advisory) meta.push(`Advisory: ${d.advisory}`);

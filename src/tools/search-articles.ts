@@ -74,8 +74,8 @@ Args:
   - size: Number of results (default 10, max 1000)
   - sortOrder: 'asc' or 'desc' by date (default 'desc')
   - offset: Pagination offset (number of results to skip)
-  - facets: All facet filters as key/value pairs (e.g. { lang: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 }).
-           Defaults: class=text, provider=afp. Override provider to include partner content (e.g. { provider: ['afp', 'sid'] }).
+  - facets: All facet filters as key/value pairs (e.g. { langs: ['en'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 }).
+           Defaults: class=text, provider=afp, langs=fr. Override langs for other languages (e.g. { langs: ['en'] } or { langs: ['fr', 'en'] }).
 
 Pagination:
   Use \`offset\` to paginate through results (e.g. offset=10 to skip the first 10).
@@ -100,6 +100,7 @@ Examples:
       const facetFilters = {
         class: ['text'],
         provider: ['afp'],
+        langs: ['fr'],
         genreid: GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };

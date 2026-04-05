@@ -5,7 +5,7 @@ import { afpListFacetsTool } from '../tools/list-facets.js';
 import { FIXTURE_DOC } from './fixtures.js';
 
 describe('tool defaults', () => {
-  it('afp_search_articles defaults to AFP text documents', async () => {
+  it('afp_search_articles defaults to AFP French text documents', async () => {
     const apicore = {
       search: mock().mockResolvedValue({ documents: [FIXTURE_DOC], count: 1 }),
     };
@@ -15,6 +15,7 @@ describe('tool defaults', () => {
     const [request] = apicore.search.mock.calls[0]!;
     expect(request.class).toEqual(['text']);
     expect(request.provider).toEqual(['afp']);
+    expect(request.langs).toEqual(['fr']);
   });
 
   it('afp_search_media defaults to AFP provider only', async () => {

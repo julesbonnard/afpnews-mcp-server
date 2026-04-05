@@ -105,7 +105,7 @@ describe('MCP integration', () => {
 
       const [request] = apicore.search.mock.calls.at(-1)!;
       expect(request.class).toEqual(['text']);
-      expect(request.lang).toEqual(['fr']);
+      expect(request.langs).toEqual(['fr']);
       expect(request.slug).toEqual(['afp', 'actualites']);
       expect(request.dateFrom).toBe('now-1d');
       expect(request.size).toBe(1);
