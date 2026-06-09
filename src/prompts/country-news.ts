@@ -13,7 +13,7 @@ export const countryNewsPrompt = {
       role: 'user' as const,
       content: {
         type: 'text' as const,
-        text: `Use afp_search_articles to find recent news for country "${country}" (facets: { lang: ["${lang}"], country: ["${country}"] }, size: 15). Write a news summary for this country covering the main stories of the day.`,
+        text: `Use afp_search_articles to find recent news for country "${country}" (facets: { langs: ["${lang}"], country: ["${country}"] }, size: 15). Write a news summary for this country covering the main stories of the day.`,
       },
     }],
   }),

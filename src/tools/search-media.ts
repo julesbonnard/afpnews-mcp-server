@@ -29,7 +29,7 @@ const inputSchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv'),
   facets: z.record(z.string(), facetParamValueSchema).optional().describe(
-    "Additional AFP facet filters (e.g. { lang: ['fr'], country: ['fra'], dateFrom: '2026-01-01' })"
+    "Additional AFP facet filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' })"
   ),
 }).strict().superRefine((value, ctx) => {
   for (const key of Object.keys(value.facets ?? {})) {
@@ -65,7 +65,7 @@ Args:
   - offset: Pagination offset
   - sortOrder: 'asc' or 'desc' (default 'desc')
   - format: markdown (default, with inline thumbnails), json (structured with rendition URLs), csv
-  - facets: Additional AFP filters (e.g. { lang: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }).
+  - facets: Additional AFP filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }).
            Defaults: provider=afp. Override provider only when partner media is explicitly needed.
 
 Pagination:
@@ -84,7 +84,7 @@ Rendition sizes:
 
 Examples:
   - AFP football photos: { class: "picture", query: "football" }
-  - French infographics on economy: { class: "graphic", query: "économie", facets: { lang: ["fr"] } }
+  - French infographics on economy: { class: "graphic", query: "économie", facets: { langs: ["fr"] } }
   - All media on a topic: { query: "climate protest", format: "json" }
   - Export gallery CSV: { class: "picture", query: "Paris", format: "csv" }`,
   inputSchema,

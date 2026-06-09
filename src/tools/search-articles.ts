@@ -40,7 +40,7 @@ const inputSchema = z.object({
   size: z.number().optional().describe('Number of results to return (default 10, max 1000)'),
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   offset: z.number().optional().describe('Offset for pagination (number of results to skip)'),
-  facets: z.record(z.string(), facetParamValueSchema).optional().describe("Facet filters passed to the AFP query (e.g. { lang: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 })."),
+  facets: z.record(z.string(), facetParamValueSchema).optional().describe("Facet filters passed to the AFP query (e.g. { langs: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 })."),
 }).strict().superRefine((value, ctx) => {
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedFacetKeys.has(key)) {
@@ -88,7 +88,7 @@ Returns:
   - csv: Header row + data rows with selected fields
 
 Examples:
-  - Latest Ukraine news: { query: "Ukraine", facets: { lang: ["en"] }, size: 5 }
+  - Latest Ukraine news: { query: "Ukraine", facets: { langs: ["en"] }, size: 5 }
   - French front page: { preset: "a-la-une" }
   - Export metadata as CSV: { query: "economy", format: "csv", fields: ["uno", "headline", "country"] }`,
   inputSchema,
