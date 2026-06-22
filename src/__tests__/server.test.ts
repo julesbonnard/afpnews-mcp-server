@@ -6,7 +6,7 @@ import { registerTools } from '../tools/index.js';
 import { registerResources } from '../resources/index.js';
 import { registerPrompts } from '../prompts/index.js';
 import type { ServerContext } from '../mcp-server.js';
-import { FIXTURE_DOC, makeDocs } from './fixtures.js';
+import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs } from './fixtures.js';
 
 function createMockApicore() {
   return {
@@ -254,6 +254,24 @@ describe('MCP integration', () => {
       const text = getText(result);
       expect(text).not.toContain('**Status:**');
       expect(text).not.toContain('**Country:**');
+    });
+
+    it('renders a timecoded shot list body for video documents', async () => {
+      apicore.get.mockResolvedValueOnce(FIXTURE_VIDEO_DOC);
+      const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-VID-001' } });
+      const text = getText(result);
+      expect(text).toContain('## Shot list');
+      expect(text).toContain('1. [00:00-00:12] Vue aérienne de la ville');
+      expect(text).toContain('"Tout a commencé très vite"');
+    });
+
+    it('returns the raw document as json when format=json', async () => {
+      apicore.get.mockResolvedValueOnce(FIXTURE_DOC);
+      const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-001', format: 'json' } });
+      const text = getText(result);
+      const parsed = JSON.parse(text);
+      expect(parsed.uno).toBe('AFP-TEST-001');
+      expect(parsed.news).toEqual(FIXTURE_DOC.news);
     });
 
     it('returns isError on API failure', async () => {
