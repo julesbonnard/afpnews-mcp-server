@@ -1,6 +1,6 @@
 {
   "name": "afpnews-mcp-server",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "",
   "main": "src/index.ts",
   "type": "module",
@@ -28,12 +28,12 @@
     "jose": "^6.2.2"
   },
   "peerDependencies": {
-    "afpnews-api": "^2.4.0",
+    "afpnews-api": "^2.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
-    "afpnews-api": "^2.4.1",
+    "afpnews-api": "^2.5.0",
     "zod": "^4.3.6"
   }
 }

@@ -1,10 +1,12 @@
 import { describe, expect, it, mock } from 'bun:test';
+import * as actualApi from 'afpnews-api';
 
 describe('createServer', () => {
   it('authenticates with provided credentials', async () => {
     const authenticateMock = mock().mockResolvedValue(undefined);
 
     mock.module('afpnews-api', () => ({
+      ...actualApi,
       ApiCore: class {
         token?: unknown;
         config?: unknown;
@@ -23,6 +25,7 @@ describe('createServer', () => {
   it('passes baseUrl to ApiCore when provided', async () => {
     let capturedConfig: unknown;
     mock.module('afpnews-api', () => ({
+      ...actualApi,
       ApiCore: class {
         token?: unknown;
         constructor(config?: unknown) { capturedConfig = config; }
@@ -40,6 +43,7 @@ describe('createServer', () => {
   it('does not set baseUrl on ApiCore when omitted', async () => {
     let capturedConfig: unknown;
     mock.module('afpnews-api', () => ({
+      ...actualApi,
       ApiCore: class {
         token?: unknown;
         constructor(config?: unknown) { capturedConfig = config; }
@@ -56,6 +60,7 @@ describe('createServer', () => {
 
   it('throws on missing credentials', async () => {
     mock.module('afpnews-api', () => ({
+      ...actualApi,
       ApiCore: class {
         token?: unknown;
         constructor() {}
