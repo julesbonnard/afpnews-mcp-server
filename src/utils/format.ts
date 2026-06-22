@@ -1,5 +1,30 @@
+import { parseShotList } from 'afpnews-api';
 import type { AFPDocument, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
+
+const VIDEO_CLASSES = new Set(['video', 'videography']);
+
+/**
+ * Render a video shot list (timecodes + descriptions + soundbite quotes) from
+ * the raw `news` lines. Returns `null` when the document is not a video or when
+ * no shot could be parsed, so callers can fall back to the plain text body.
+ */
+export function formatShotList(doc: unknown): string | null {
+  const d = doc as AFPDocument;
+  if (!VIDEO_CLASSES.has(String(d['class']))) return null;
+
+  const news = Array.isArray(d.news) ? d.news : [];
+  const shots = parseShotList(news.join('\n'));
+  if (shots.length === 0) return null;
+
+  const lines = shots.map((shot) => {
+    const head = `${shot.numero}. [${shot.start}-${shot.end}] ${shot.description}`.trimEnd();
+    const quotes = shot.citations.map((c) => `   "${c.text}"`);
+    return [head, ...quotes].join('\n');
+  });
+
+  return `## Shot list\n\n${lines.join('\n')}`;
+}
 
 export function truncationHint(remaining?: number): string {
   const suffix = remaining != null && remaining > 0
@@ -163,7 +188,7 @@ export function formatFullArticle(doc: unknown): TextContent {
   if (flags) lines.push(flags);
 
   const meta = lines.join('\n');
-  const body = (Array.isArray(d.news) ? d.news : []).join('\n\n');
+  const body = formatShotList(d) ?? (Array.isArray(d.news) ? d.news : []).join('\n\n');
 
   return textContent(`## ${d.headline}\n\n${meta}\n\n---\n\n${body}`);
 }
