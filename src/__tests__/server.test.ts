@@ -355,6 +355,40 @@ describe('MCP integration', () => {
       expect(params).toMatchObject({ langs: ['fr'], class: ['text'], provider: ['afp'], dateFrom: 'now-1d' });
     });
 
+    it('forwards query and date window to the API', async () => {
+      await client.callTool({
+        name: 'afp_list_facets',
+        arguments: { facet: 'slug', query: 'elections', dateFrom: 'now-2d', dateTo: 'now-1d', lang: 'fr' },
+      });
+      const [facet, params] = apicore.list.mock.calls.at(-1)!;
+      expect(facet).toBe('slug');
+      expect(params).toMatchObject({
+        query: 'elections',
+        dateFrom: 'now-2d',
+        dateTo: 'now-1d',
+        langs: ['fr'],
+      });
+    });
+
+    it('forwards additional facet filters', async () => {
+      await client.callTool({
+        name: 'afp_list_facets',
+        arguments: { facet: 'genre', facets: { country: ['usa'] } },
+      });
+      const [, params] = apicore.list.mock.calls.at(-1)!;
+      expect(params).toMatchObject({ country: ['usa'] });
+    });
+
+    it('lets explicit dates override the trending preset window', async () => {
+      await client.callTool({
+        name: 'afp_list_facets',
+        arguments: { preset: 'trending-topics', dateFrom: 'now-7d', dateTo: 'now' },
+      });
+      const [facet, params] = apicore.list.mock.calls.at(-1)!;
+      expect(facet).toBe('slug');
+      expect(params).toMatchObject({ dateFrom: 'now-7d', dateTo: 'now' });
+    });
+
     it('returns isError on API failure', async () => {
       apicore.list.mockRejectedValueOnce(new Error('Service unavailable'));
       const result = await client.callTool({ name: 'afp_list_facets', arguments: { facet: 'slug' } });
