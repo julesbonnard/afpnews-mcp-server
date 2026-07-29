@@ -75,9 +75,10 @@ Pagination:
 Returns (json):
   { total, shown, offset, truncated, remaining, documents: [{ uno, title, caption, creditLine, creator,
     country, city, published, urgency, class, aspectRatios, advisory,
-    renditions: { thumbnail, preview, highdef } }] }
+    renditions: { quicklook, thumbnail, preview, highdef } }] }
 
 Rendition sizes:
+  - quicklook: ~245px wide (lightest, when available)
   - thumbnail: ~320px wide (gallery grid)
   - preview: ~1200px wide (display)
   - highdef: ~3400px wide (download / analysis)

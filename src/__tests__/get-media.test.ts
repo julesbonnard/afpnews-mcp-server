@@ -25,10 +25,25 @@ describe('inferMimeType', () => {
 
 describe('selectRenditionForEmbed', () => {
   const renditions: MediaRenditions = {
+    quicklook: { href: 'https://example.com/quick.jpg', width: 245, height: 164, sizeInBytes: 14055 },
     thumbnail: { href: 'https://example.com/thumb.jpg', width: 320, height: 213, sizeInBytes: 33590 },
     preview:   { href: 'https://example.com/prev.jpg',  width: 1200, height: 800, sizeInBytes: 340621 },
     highdef:   { href: 'https://example.com/hd.jpg',    width: 3429, height: 2286, sizeInBytes: 5126566 },
   };
+
+  it('returns quicklook when explicitly requested and available', () => {
+    const r = selectRenditionForEmbed(renditions, 'quicklook');
+    expect(r?.href).toBe('https://example.com/quick.jpg');
+  });
+
+  it('downgrades to quicklook when thumbnail is absent and requested rendition exceeds 5MB', () => {
+    const noThumbnail: MediaRenditions = {
+      quicklook: { href: 'https://example.com/quick.jpg', width: 245, height: 164, sizeInBytes: 14055 },
+      highdef:   { href: 'https://example.com/hd.jpg',    width: 3429, height: 2286, sizeInBytes: 5126566 },
+    };
+    const r = selectRenditionForEmbed(noThumbnail, 'highdef');
+    expect(r?.href).toBe('https://example.com/quick.jpg');
+  });
 
   it('returns requested rendition when available and under size limit', () => {
     const r = selectRenditionForEmbed(renditions, 'preview');

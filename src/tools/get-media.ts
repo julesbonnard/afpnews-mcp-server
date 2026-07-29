@@ -21,19 +21,19 @@ export function inferMimeType(afpType: string | undefined, href: string): string
 // Exported for testing
 export function selectRenditionForEmbed(
   renditions: MediaRenditions,
-  requested: 'thumbnail' | 'preview' | 'highdef',
+  requested: 'quicklook' | 'thumbnail' | 'preview' | 'highdef',
 ): MediaRendition | undefined {
   const SIZE_LIMIT = 5_000_000;
 
   const get = (key: keyof MediaRenditions): MediaRendition | undefined => renditions[key];
 
   // Try requested rendition, then fallback chain
-  const candidate = get(requested) ?? get('preview') ?? get('thumbnail');
+  const candidate = get(requested) ?? get('preview') ?? get('thumbnail') ?? get('quicklook');
   if (!candidate) return undefined;
 
   // Downgrade if over size limit (only once)
   if ((candidate.sizeInBytes ?? 0) > SIZE_LIMIT) {
-    return get('thumbnail') ?? candidate; // proceed with candidate if no thumbnail
+    return get('thumbnail') ?? get('quicklook') ?? candidate; // proceed with candidate if no lighter rendition
   }
 
   return candidate;
@@ -42,7 +42,7 @@ export function selectRenditionForEmbed(
 const inputSchema = z.object({
   uno: z.string().describe('AFP document UNO identifier (e.g. newsml.afp.com.20260316T202634Z.doc-a3jc2qq)'),
   embed: z.boolean().optional().describe('When true, fetches the image and returns it as base64 for Claude vision analysis. Default: false.'),
-  rendition: renditionEnum.optional().describe("Rendition size to embed: 'thumbnail' (320px), 'preview' (1200px, default), 'highdef' (~3400px)"),
+  rendition: renditionEnum.optional().describe("Rendition size to embed: 'quicklook' (~245px, lightest), 'thumbnail' (320px), 'preview' (1200px, default), 'highdef' (~3400px)"),
 });
 
 type GetMediaInput = z.infer<typeof inputSchema>;
@@ -65,7 +65,8 @@ function formatFullMediaText(doc: Record<string, unknown>, renditions: MediaRend
   if (doc.advisory) lines.push(`\n> ${doc.advisory}`);
 
   lines.push('\n**Renditions:**');
-  const { thumbnail, preview, highdef } = renditions;
+  const { quicklook, thumbnail, preview, highdef } = renditions;
+  if (quicklook) lines.push(`- quicklook: ${quicklook.href} (${quicklook.width}×${quicklook.height})`);
   if (thumbnail) lines.push(`- thumbnail: ${thumbnail.href} (${thumbnail.width}×${thumbnail.height})`);
   if (preview)   lines.push(`- preview: ${preview.href} (${preview.width}×${preview.height})`);
   if (highdef)   lines.push(`- highdef: ${highdef.href} (${highdef.width}×${highdef.height})`);
@@ -85,8 +86,8 @@ Media classes: picture (photo), video, graphic (infographic/SVG), videography (v
 Args:
   - uno: AFP document UNO (e.g. newsml.afp.com.20260316T202634Z.doc-a3jc2qq)
   - embed: When true, fetches the image and returns it as a base64 MCP image block that Claude can see and analyse visually. Default: false.
-  - rendition: Size to embed — 'thumbnail' (320px), 'preview' (1200px, default), 'highdef' (~3400px).
-               Files > 5 MB are automatically downgraded to thumbnail.
+  - rendition: Size to embed — 'quicklook' (~245px, lightest), 'thumbnail' (320px), 'preview' (1200px, default), 'highdef' (~3400px).
+               Files > 5 MB are automatically downgraded to a lighter rendition.
                Videos and videography always use thumbnail (poster frame). SVG graphics cannot be embedded.
 
 Returns:
@@ -124,7 +125,7 @@ Returns:
       }
 
       // Guard: video → use thumbnail as poster frame
-      let renditionKey: 'thumbnail' | 'preview' | 'highdef' = requestedRendition;
+      let renditionKey: 'quicklook' | 'thumbnail' | 'preview' | 'highdef' = requestedRendition;
       let note: string | undefined;
       if (doc.class === 'video') {
         renditionKey = 'thumbnail';

@@ -21,6 +21,7 @@ const FIXTURE_BAG_NO_PREVIEW = [{
 }];
 
 describe('MEDIA_RENDITION_ROLE_MAP', () => {
+  it('maps Quicklook → quicklook', () => expect(MEDIA_RENDITION_ROLE_MAP['Quicklook']).toBe('quicklook'));
   it('maps Thumbnail → thumbnail', () => expect(MEDIA_RENDITION_ROLE_MAP['Thumbnail']).toBe('thumbnail'));
   it('maps Preview → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview']).toBe('preview'));
   it('maps Preview_B → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_B']).toBe('preview'));
@@ -37,8 +38,10 @@ describe('extractRenditions', () => {
     expect(extractRenditions([{}])).toEqual({});
   });
 
-  it('extracts thumbnail, preview, highdef from standard bagItem', () => {
+  it('extracts quicklook, thumbnail, preview, highdef from standard bagItem', () => {
     const r = extractRenditions(FIXTURE_BAG_ITEM);
+    expect(r.quicklook?.href).toBe('https://example.com/quick.jpg');
+    expect(r.quicklook?.width).toBe(245);
     expect(r.thumbnail?.href).toBe('https://example.com/thumb.jpg');
     expect(r.thumbnail?.width).toBe(320);
     expect(r.thumbnail?.sizeInBytes).toBe(33590);
@@ -58,9 +61,15 @@ describe('extractRenditions', () => {
     expect(r.preview?.width).toBe(1800);
   });
 
-  it('ignores unknown roles (Quicklook)', () => {
-    const r = extractRenditions(FIXTURE_BAG_ITEM);
-    expect(Object.keys(r)).not.toContain('quicklook');
+  it('ignores genuinely unknown roles', () => {
+    const bagWithUnknownRole = [{
+      medias: [
+        ...FIXTURE_BAG_ITEM[0].medias,
+        { role: 'SomeFutureRole', href: 'https://example.com/future.jpg', width: 999, height: 999, type: 'Photo' },
+      ],
+    }];
+    const r = extractRenditions(bagWithUnknownRole);
+    expect(Object.keys(r)).not.toContain('somefuturerole');
   });
 
   it('uses first bagItem only (index 0)', () => {
