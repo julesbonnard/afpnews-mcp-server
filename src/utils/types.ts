@@ -32,8 +32,10 @@ export interface MediaRendition {
 }
 
 export interface MediaRenditions {
+  squared120?: MediaRendition;
   quicklook?: MediaRendition;
   thumbnail?: MediaRendition;
+  mockup?: MediaRendition;
   preview?: MediaRendition;
   highdef?: MediaRendition;
 }

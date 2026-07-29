@@ -28,7 +28,7 @@ const MEDIA_CLASS_VALUES = ['picture', 'video', 'graphic', 'videography'] as con
 export const mediaClassEnum = z.enum(MEDIA_CLASS_VALUES);
 export type MediaClass = z.infer<typeof mediaClassEnum>;
 
-const RENDITION_VALUES = ['quicklook', 'thumbnail', 'preview', 'highdef'] as const;
+const RENDITION_VALUES = ['squared120', 'quicklook', 'thumbnail', 'mockup', 'preview', 'highdef'] as const;
 export const renditionEnum = z.enum(RENDITION_VALUES);
 export type RenditionKey = z.infer<typeof renditionEnum>;
 

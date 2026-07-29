@@ -4,11 +4,13 @@ import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, for
 // Fixture bagItem reprenant la structure réelle AFP
 const FIXTURE_BAG_ITEM = [{
   medias: [
-    { role: 'Thumbnail',  sizeInBytes: 33590,   width: 320,  height: 213,  href: 'https://example.com/thumb.jpg',   type: 'Photo' },
-    { role: 'Preview',    sizeInBytes: 340621,  width: 1200, height: 800,  href: 'https://example.com/prev.jpg',    type: 'Photo' },
-    { role: 'Preview_B',  sizeInBytes: 596996,  width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg',  type: 'Photo' },
-    { role: 'HighDef',    sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg',      type: 'Photo' },
-    { role: 'Quicklook',  sizeInBytes: 14055,   width: 245,  height: 164,  href: 'https://example.com/quick.jpg',  type: 'Photo' },
+    { role: 'Thumbnail',   sizeInBytes: 33590,   width: 320,  height: 213,  href: 'https://example.com/thumb.jpg',   type: 'Photo' },
+    { role: 'Preview',     sizeInBytes: 340621,  width: 1200, height: 800,  href: 'https://example.com/prev.jpg',    type: 'Photo' },
+    { role: 'Preview_B',   sizeInBytes: 596996,  width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg',  type: 'Photo' },
+    { role: 'HighDef',     sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg',      type: 'Photo' },
+    { role: 'Quicklook',   sizeInBytes: 14055,   width: 245,  height: 164,  href: 'https://example.com/quick.jpg',   type: 'Photo' },
+    { role: 'Mockup',      sizeInBytes: 19989,   width: 512,  height: 342,  href: 'https://example.com/mockup.jpg',  type: 'Photo' },
+    { role: 'Squared120',  sizeInBytes: 3696,    width: 120,  height: 120,  href: 'https://example.com/sq120.jpg',   type: 'Photo' },
   ],
 }];
 
@@ -27,6 +29,8 @@ describe('MEDIA_RENDITION_ROLE_MAP', () => {
   it('maps Preview_B → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_B']).toBe('preview'));
   it('maps Preview_W → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_W']).toBe('preview'));
   it('maps HighDef → highdef', () => expect(MEDIA_RENDITION_ROLE_MAP['HighDef']).toBe('highdef'));
+  it('maps Mockup → mockup', () => expect(MEDIA_RENDITION_ROLE_MAP['Mockup']).toBe('mockup'));
+  it('maps Squared120 → squared120', () => expect(MEDIA_RENDITION_ROLE_MAP['Squared120']).toBe('squared120'));
 });
 
 describe('extractRenditions', () => {
@@ -38,13 +42,17 @@ describe('extractRenditions', () => {
     expect(extractRenditions([{}])).toEqual({});
   });
 
-  it('extracts quicklook, thumbnail, preview, highdef from standard bagItem', () => {
+  it('extracts squared120, quicklook, thumbnail, mockup, preview, highdef from standard bagItem', () => {
     const r = extractRenditions(FIXTURE_BAG_ITEM);
+    expect(r.squared120?.href).toBe('https://example.com/sq120.jpg');
+    expect(r.squared120?.width).toBe(120);
     expect(r.quicklook?.href).toBe('https://example.com/quick.jpg');
     expect(r.quicklook?.width).toBe(245);
     expect(r.thumbnail?.href).toBe('https://example.com/thumb.jpg');
     expect(r.thumbnail?.width).toBe(320);
     expect(r.thumbnail?.sizeInBytes).toBe(33590);
+    expect(r.mockup?.href).toBe('https://example.com/mockup.jpg');
+    expect(r.mockup?.width).toBe(512);
     expect(r.preview?.href).toBe('https://example.com/prev.jpg');
     expect(r.preview?.width).toBe(1200);
     expect(r.highdef?.href).toBe('https://example.com/hd.jpg');

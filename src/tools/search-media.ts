@@ -3,15 +3,45 @@ import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import { textContent, toolError, buildPaginationLine } from '../utils/format.js';
 import {
   formatMediaOutput,
+  formatMediaDocument,
   normalizeMediaDocument,
 } from '../utils/format-media.js';
 import { DEFAULT_SEARCH_SIZE } from '../utils/types.js';
+import type { AFPMediaDocument, AnyContent, MediaRendition } from '../utils/types.js';
+import { selectRenditionForEmbed, isSvgRendition, embedRendition } from '../utils/embed-media.js';
 import {
   mediaClassEnum,
   outputFormatEnum,
   formatErrorMessage,
   facetParamValueSchema,
 } from './shared.js';
+
+// Fetching + base64-encoding images is costly: cap how many results get embedded per call,
+// regardless of the requested `size` (see handler: `size` itself is clamped when embed is true).
+export const EMBED_MAX_DOCS = 5;
+
+async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent[]> {
+  const content: AnyContent[] = [];
+
+  for (const doc of docs) {
+    content.push(formatMediaDocument(doc));
+
+    const allRenditions = Object.values(doc.renditions).filter(Boolean) as MediaRendition[];
+    if (doc.class === 'graphic' && allRenditions.some(isSvgRendition)) {
+      content.push(textContent('_Warning: SVG graphics cannot be embedded for vision._'));
+      continue;
+    }
+
+    const renditionKey = doc.class === 'video' || doc.class === 'videography' ? 'thumbnail' : 'quicklook';
+    const chosen = selectRenditionForEmbed(doc.renditions, renditionKey);
+    if (!chosen) continue;
+
+    const embedded = await embedRendition(chosen);
+    if (embedded.ok) content.push(embedded.image);
+  }
+
+  return content;
+}
 
 const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sortOrder', 'offset', 'facets']);
 
@@ -30,6 +60,9 @@ const inputSchema = z.object({
   format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv'),
   facets: z.record(z.string(), facetParamValueSchema).optional().describe(
     "Additional AFP facet filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' })"
+  ),
+  embed: z.boolean().optional().describe(
+    `When true, fetches and embeds the lightest available image (quicklook, thumbnail poster frame for video) for each result as base64, for Claude vision analysis. Requires format: "markdown" (default). Size is capped to ${EMBED_MAX_DOCS} regardless of the requested value, since fetching/encoding images is costly. Default: false.`
   ),
 }).strict().superRefine((value, ctx) => {
   for (const key of Object.keys(value.facets ?? {})) {
@@ -67,6 +100,9 @@ Args:
   - format: markdown (default, with inline thumbnails), json (structured with rendition URLs), csv
   - facets: Additional AFP filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }).
            Defaults: provider=afp. Override provider only when partner media is explicitly needed.
+  - embed: When true, fetches and embeds the lightest image for each result as base64 (Claude vision analysis) —
+           useful to visually compare or verify a handful of candidate photos before picking one.
+           Requires format: "markdown". Size is capped to ${EMBED_MAX_DOCS} regardless of the requested value.
 
 Pagination:
   Use \`offset\` to paginate (e.g. offset=10 to skip the first 10).
@@ -91,13 +127,18 @@ Examples:
   inputSchema,
   handler: async (
     apicore: Pick<ApiCore, 'search'>,
-    { class: mediaClass, query, size = DEFAULT_SEARCH_SIZE, offset, sortOrder = 'desc', format = 'markdown', facets }: SearchMediaInput,
+    { class: mediaClass, query, size = DEFAULT_SEARCH_SIZE, offset, sortOrder = 'desc', format = 'markdown', facets, embed = false }: SearchMediaInput,
   ) => {
     try {
+      if (embed && format !== 'markdown') {
+        return toolError(`embed is only supported with format: "markdown" (got "${format}").`);
+      }
+
+      const effectiveSize = embed ? Math.min(size, EMBED_MAX_DOCS) : size;
       const classFilter = mediaClass ? [mediaClass] : ['picture', 'video', 'graphic', 'videography'];
       const request: SearchQueryParams = {
         query,
-        size,
+        size: effectiveSize,
         sortOrder,
         startAt: offset,
         class: classFilter,
@@ -113,6 +154,18 @@ Examples:
 
       const docs = rawDocs.map(normalizeMediaDocument);
       const currentOffset = offset ?? 0;
+
+      if (embed) {
+        const pagination = textContent(buildPaginationLine(docs.length, count, currentOffset));
+        const embeddedContent = await embedMediaDocuments(docs);
+        return {
+          content: [pagination, ...embeddedContent],
+          shown: docs.length,
+          truncated: false,
+          remaining: count - docs.length,
+        };
+      }
+
       return formatMediaOutput(docs, format, {
         jsonMeta: { total: count, offset: currentOffset },
         markdownPrefix: (shown) => [textContent(buildPaginationLine(shown, count, currentOffset))],

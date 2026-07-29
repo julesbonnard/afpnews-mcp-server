@@ -4,12 +4,14 @@ import { textContent, truncateToLimit, truncateContentItems, truncationHint } fr
 // Mapping role AFP → clé normalisée (utilise m.role, pas m.rendition)
 // Preview est prioritaire sur Preview_B/Preview_W (premier match gagne)
 export const MEDIA_RENDITION_ROLE_MAP: Record<string, keyof MediaRenditions> = {
-  'Quicklook': 'quicklook',
-  'Thumbnail': 'thumbnail',
-  'Preview':   'preview',
-  'Preview_B': 'preview',
-  'Preview_W': 'preview',
-  'HighDef':   'highdef',
+  'Squared120': 'squared120',
+  'Quicklook':  'quicklook',
+  'Thumbnail':  'thumbnail',
+  'Mockup':     'mockup',
+  'Preview':    'preview',
+  'Preview_B':  'preview',
+  'Preview_W':  'preview',
+  'HighDef':    'highdef',
 };
 
 export function extractRenditions(bagItem: unknown): MediaRenditions {
