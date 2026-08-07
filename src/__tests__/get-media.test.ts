@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { inferMimeType, selectRenditionForEmbed } from '../tools/get-media.js';
 import type { MediaRenditions } from '../utils/types.js';
 
