@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, formatMediaDocumentsAsCsv, MEDIA_RENDITION_ROLE_MAP } from '../utils/format-media.js';
 
 // Fixture bagItem reprenant la structure réelle AFP
@@ -109,14 +109,20 @@ describe('formatMediaDocument', () => {
     expect(t).toContain('GBR');
   });
 
-  it('includes inline thumbnail image', () => {
+  // La preview (meilleure qualité) est affichée inline à la place du thumbnail quand elle est disponible.
+  it('includes inline preview image (preferred over thumbnail)', () => {
     const t = formatMediaDocument(doc).text;
+    expect(t).toContain('![A footballer heads the ball.](https://example.com/prev.jpg)');
+  });
+
+  it('falls back to inline thumbnail image when no preview', () => {
+    const docNoPreview = { ...doc, renditions: { thumbnail: doc.renditions.thumbnail, highdef: doc.renditions.highdef } };
+    const t = formatMediaDocument(docNoPreview).text;
     expect(t).toContain('![A footballer heads the ball.](https://example.com/thumb.jpg)');
   });
 
-  it('includes preview and highdef links', () => {
+  it('includes highdef link', () => {
     const t = formatMediaDocument(doc).text;
-    expect(t).toContain('[Preview 1200px](https://example.com/prev.jpg)');
     expect(t).toContain('[HighDef 3429px](https://example.com/hd.jpg)');
   });
 
