@@ -24,7 +24,7 @@ export const listPresetEnum = z.enum(LIST_PRESET_VALUES);
 
 export const langEnum = z.enum(['en', 'fr', 'de', 'pt', 'es', 'ar']);
 
-const MEDIA_CLASS_VALUES = ['picture', 'video', 'graphic'] as const;
+const MEDIA_CLASS_VALUES = ['picture', 'video', 'graphic', 'videography'] as const;
 export const mediaClassEnum = z.enum(MEDIA_CLASS_VALUES);
 export type MediaClass = z.infer<typeof mediaClassEnum>;
 

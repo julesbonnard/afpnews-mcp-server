@@ -25,7 +25,7 @@ const MEDIA_API_FIELDS = [
 ] as const;
 
 const inputSchema = z.object({
-  class: mediaClassEnum.optional().describe("Media class filter: 'picture', 'video', or 'graphic'. Omit to search all media types."),
+  class: mediaClassEnum.optional().describe("Media class filter: 'picture' (photos), 'video', 'graphic' (infographics), or 'videography' (motion design). Omit to search all media types."),
   query: z.string().optional().describe("Search keywords (e.g. 'football london')"),
   size: z.number().optional().describe('Number of results (default 10, max 1000)'),
   offset: z.number().optional().describe('Pagination offset'),
@@ -69,10 +69,16 @@ function buildMediaDocument(raw: any): AFPMediaDocument {
 export const afpSearchMediaTool = {
   name: 'afp_search_media',
   title: 'Search AFP Media (Photos, Videos, Graphics)',
-  description: `Search AFP photos, videos, and infographics. Returns rendition URLs for gallery display.
+  description: `Search AFP media documents: photos, videos, infographics, and motion design.
+
+Media classes:
+  - picture: AFP photos. Captions are always in English — do not filter by lang, or use lang=en.
+  - video: AFP video clips. No language constraint.
+  - graphic: AFP infographics. Available in multiple languages — filter by lang if needed.
+  - videography: AFP motion design (vidéographie). Available in multiple languages — filter by lang if needed.
 
 Args:
-  - class: 'picture', 'video', or 'graphic' (omit to search all media types)
+  - class: 'picture', 'video', 'graphic', or 'videography' (omit to search all media types)
   - query: Search keywords
   - size: Number of results (default 10)
   - offset: Pagination offset
@@ -91,7 +97,8 @@ Rendition sizes:
   - highdef: ~3400px wide (download / analysis)
 
 Examples:
-  - AFP football photos: { class: "picture", query: "football", facets: { lang: ["en"] } }
+  - AFP football photos: { class: "picture", query: "football" }
+  - French infographics on economy: { class: "graphic", query: "économie", facets: { lang: ["fr"] } }
   - All media on a topic: { query: "climate protest", format: "json" }
   - Export gallery CSV: { class: "picture", query: "Paris", format: "csv" }`,
   inputSchema,
@@ -100,7 +107,7 @@ Examples:
     { class: mediaClass, query, size = DEFAULT_SEARCH_SIZE, offset, sortOrder = 'desc', format = 'markdown', facets }: SearchMediaInput,
   ) => {
     try {
-      const classFilter = mediaClass ? [mediaClass] : ['picture', 'video', 'graphic'];
+      const classFilter = mediaClass ? [mediaClass] : ['picture', 'video', 'graphic', 'videography'];
       const request: Record<string, unknown> = {
         query,
         size,

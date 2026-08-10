@@ -49,16 +49,14 @@ export function formatMediaDocument(doc: Partial<AFPMediaDocument> & { uno: stri
   const { thumbnail, preview, highdef } = doc.renditions;
   const caption = doc.caption ?? '';
 
-  if (thumbnail) {
-    lines.push(`![${caption}](${thumbnail.href})`);
+  const displayRendition = preview ?? thumbnail;
+  if (displayRendition) {
+    lines.push(`![${caption}](${displayRendition.href})`);
     lines.push('');
   }
 
-  const links: string[] = [];
-  if (preview) links.push(`[Preview ${preview.width}px](${preview.href})`);
-  if (highdef) links.push(`[HighDef ${highdef.width}px](${highdef.href})`);
-  if (links.length > 0) {
-    lines.push(links.join(' | '));
+  if (highdef) {
+    lines.push(`[HighDef ${highdef.width}px](${highdef.href})`);
     lines.push('');
   }
 
