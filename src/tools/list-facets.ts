@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
+import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import { escapeCsvValue, textContent, toolError, truncateToLimit, TRUNCATION_HINT } from '../utils/format.js';
 import {
-  type FacetResult,
   formatErrorMessage,
   langEnum,
   listPresetEnum,
@@ -52,12 +51,11 @@ Examples:
       }
 
       const resolvedSize = size ?? 10;
-      const params: Record<string, unknown> = isTrendingTopics
+      const params: SearchQueryParams = isTrendingTopics
         ? { langs: [lang ?? 'fr'], class: ['text'], dateFrom: 'now-1d', size: resolvedSize }
         : { ...(lang ? { langs: [lang] } : {}), size: resolvedSize };
 
-      const rawResult = await apicore.list(resolvedFacet, params as any, 1) as any;
-      const results: FacetResult[] = rawResult?.keywords ?? rawResult ?? [];
+      const { keywords: results } = await apicore.list(resolvedFacet, params, 1);
 
       if (results.length === 0) {
         return { content: [textContent(`No facet values found for "${resolvedFacet}".`)] };
@@ -85,7 +83,7 @@ Examples:
       }
 
       const heading = isTrendingTopics ? 'Trending Topics' : `Facet: ${resolvedFacet}`;
-      const lines = results.map((item) => `- **${item.name}** — ${item.count} articles`);
+      const lines = results.map((item) => `- **${item.name ?? ''}** — ${item.count} articles`);
       return { content: [textContent(`## ${heading}\n\n${lines.join('\n')}`)] };
     } catch (error) {
       return toolError(formatErrorMessage('listing facet values', error, "Check that the facet name is valid (e.g. 'slug', 'genre', 'country')."));

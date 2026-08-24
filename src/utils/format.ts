@@ -1,3 +1,4 @@
+import type { AfpDocument } from 'afpnews-api';
 import type { AFPDocument, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
 
@@ -105,9 +106,7 @@ export function formatDocument(doc: unknown, fullText = false): TextContent {
   return textContent(`## ${d.headline}\n*${meta.join(' | ')}*\n\n${body}`);
 }
 
-export function formatFullArticle(doc: unknown): TextContent {
-  const d = doc as AFPDocument;
-
+export function formatFullArticle(doc: AfpDocument): TextContent {
   const row = (...pairs: Array<[string, unknown]>) =>
     pairs
       .filter(([, v]) => v != null && v !== '')
@@ -115,19 +114,24 @@ export function formatFullArticle(doc: unknown): TextContent {
       .join(' · ');
 
   const lines: string[] = [];
-  lines.push(row(['UNO', d.uno]));
-  lines.push(row(['Lang', d.lang], ['Genre', d.genre], ['Class', d['class']], ['Revision', d.revision]));
+  lines.push(row(['UNO', doc.uno]));
+  lines.push(row(['Lang', doc.lang], ['Genre', doc.genre], ['Class', doc.class], ['Revision', doc.revision]));
 
-  const extras = row(['Country', d.country], ['City', d.city], ['Slug', d.slug], ['Event', d.event]);
+  const extras = row(
+    ['Country', doc.country.name ?? doc.country.id],
+    ['City', doc.city],
+    ['Slug', doc.slugs],
+    ['Event', doc.events.map(e => e.name)],
+  );
   if (extras) lines.push(extras);
 
-  const flags = row(['Status', d.status], ['Signal', d.signal], ['Advisory', d.advisory]);
+  const flags = row(['Status', doc.status], ['Signal', doc.signal], ['Advisory', doc.advisory]);
   if (flags) lines.push(flags);
 
   const meta = lines.join('\n');
-  const body = (Array.isArray(d.news) ? d.news : []).join('\n\n');
+  const body = doc.paragraphs.map(p => p.text).join('\n\n');
 
-  return textContent(`## ${d.headline}\n\n${meta}\n\n---\n\n${body}`);
+  return textContent(`## ${doc.headline}\n\n${meta}\n\n---\n\n${body}`);
 }
 
 /**

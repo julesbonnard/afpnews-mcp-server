@@ -16,6 +16,12 @@ export const FIXTURE_DOC: AFPDocument = {
   status: 'Usable',
   signal: 'update',
   advisory: 'CORRECTION',
+  // Requis par le modèle canonique afpnews-api (AfpDocument), consommé par afp_get_article.
+  'class': 'text',
+  urgency: 4,
+  created: '2026-02-14T10:00:00Z',
+  revision: 1,
+  provider: 'AFP',
 };
 
 export const FIXTURE_DOC_MINIMAL: AFPDocument = {

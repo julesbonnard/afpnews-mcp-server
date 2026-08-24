@@ -16,6 +16,8 @@ export interface AFPDocument {
   'class'?: string;
   revision?: number;
   created?: string;
+  urgency?: number;
+  provider?: string;
 }
 
 export interface TextContent {

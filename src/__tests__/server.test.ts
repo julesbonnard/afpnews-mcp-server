@@ -12,7 +12,7 @@ function createMockApicore() {
     search: mock().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
     get: mock().mockResolvedValue(makeDocs(1)[0]),
     mlt: mock().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
-    list: mock().mockResolvedValue([{ name: 'economy', count: 42 }]),
+    list: mock().mockResolvedValue({ count: 1, keywords: [{ name: 'economy', count: 42 }] }),
   };
 }
 
@@ -252,10 +252,23 @@ describe('MCP integration', () => {
     });
 
     it('does not include missing optional fields', async () => {
-      apicore.get.mockResolvedValueOnce({ uno: 'X', headline: 'H', lang: 'fr', genre: 'news', published: '2026-01-01T00:00:00Z', news: ['body'] });
+      apicore.get.mockResolvedValueOnce({
+        uno: 'X',
+        headline: 'H',
+        lang: 'fr',
+        genre: 'news',
+        published: '2026-01-01T00:00:00Z',
+        news: ['body'],
+        class: 'text',
+        urgency: 4,
+        created: '2026-01-01T00:00:00Z',
+        revision: 1,
+        provider: 'AFP',
+        status: 'Usable',
+      });
       const result = await callTool(client, { name: 'afp_get_article', arguments: { uno: 'X' } });
       const text = getText(result);
-      expect(text).not.toContain('**Status:**');
+      expect(text).not.toContain('**Signal:**');
       expect(text).not.toContain('**Country:**');
     });
 
