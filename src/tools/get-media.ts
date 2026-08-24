@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
+import type { ApiCore, AfpDocument } from 'afpnews-api';
+import { parseDocument } from 'afpnews-api';
 import { textContent, toolError } from '../utils/format.js';
 import { extractRenditions } from '../utils/format-media.js';
 import type { MediaRendition, MediaRenditions, ImageContent } from '../utils/types.js';
@@ -47,19 +48,21 @@ const inputSchema = z.object({
 
 type GetMediaInput = z.infer<typeof inputSchema>;
 
-function formatFullMediaText(doc: any, renditions: MediaRenditions, note?: string): string {
+function formatFullMediaText(doc: AfpDocument, renditions: MediaRenditions, note?: string): string {
   const lines: string[] = [];
   if (doc.title) lines.push(`## ${doc.title}`);
   lines.push(`**UNO:** ${doc.uno}`);
   if (doc.class)      lines.push(`**Class:** ${doc.class}`);
   if (doc.creditLine) lines.push(`**Credit:** ${doc.creditLine}`);
   if (doc.creator)    lines.push(`**Creator:** ${doc.creator}`);
-  if (doc.published)  lines.push(`**Published:** ${doc.published}`);
-  if (doc.country || doc.city) lines.push(`**Location:** ${[doc.city, doc.country].filter(Boolean).join(', ')}`);
+  lines.push(`**Published:** ${doc.published.toISOString()}`);
+  if (doc.city || doc.country.name || doc.country.id) {
+    lines.push(`**Location:** ${[doc.city, doc.country.name ?? doc.country.id].filter(Boolean).join(', ')}`);
+  }
   if (doc.urgency != null) lines.push(`**Urgency:** ${doc.urgency}`);
   if (doc.aspectRatios?.length) lines.push(`**Aspect:** ${doc.aspectRatios.join(', ')}`);
 
-  const caption = Array.isArray(doc.caption) ? doc.caption[0] : doc.caption;
+  const caption = doc.medias[0]?.caption;
   if (caption) lines.push(`\n${caption}`);
   if (doc.advisory) lines.push(`\n> ${doc.advisory}`);
 
@@ -97,12 +100,13 @@ Returns:
     { uno, embed = false, rendition: requestedRendition = 'preview' }: GetMediaInput,
   ) => {
     try {
-      const doc = await apicore.get(uno) as any;
-      if (!doc) {
+      const raw = await apicore.get(uno);
+      if (!raw) {
         return toolError(`Media document not found: ${uno}`);
       }
+      const doc = parseDocument(raw);
 
-      const renditions = extractRenditions(doc.bagItem ?? []);
+      const renditions = extractRenditions(doc.medias[0]?.renditions ?? []);
       const metadataText = textContent(formatFullMediaText(doc, renditions));
 
       if (!embed) {

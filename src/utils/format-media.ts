@@ -1,3 +1,4 @@
+import type { AfpMediaRendition } from 'afpnews-api';
 import type { AFPMediaDocument, MediaRenditions, MediaRendition, TextContent } from './types.js';
 import { textContent, truncateToLimit } from './format.js';
 
@@ -11,13 +12,12 @@ export const MEDIA_RENDITION_ROLE_MAP: Record<string, keyof MediaRenditions> = {
   'HighDef':   'highdef',
 };
 
-export function extractRenditions(bagItem: unknown): MediaRenditions {
-  if (!Array.isArray(bagItem) || bagItem.length === 0) return {};
-  const medias: any[] = (bagItem[0] as any)?.medias ?? [];
+/** Bucketise les renditions d'un AfpMedia (déjà extraites du modèle canonique) par rôle normalisé. */
+export function extractRenditions(renditions: readonly AfpMediaRendition[] = []): MediaRenditions {
   const result: MediaRenditions = {};
 
-  for (const m of medias) {
-    const key = MEDIA_RENDITION_ROLE_MAP[m.role as string];
+  for (const m of renditions) {
+    const key = MEDIA_RENDITION_ROLE_MAP[m.role];
     if (!key) continue;
     if (result[key]) continue; // ne pas écraser (Preview prioritaire sur Preview_B/W)
     result[key] = {

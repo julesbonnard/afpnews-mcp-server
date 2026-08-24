@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
-import { textContent, toolError, TRUNCATION_HINT, buildPaginationLine } from '../utils/format.js';
+import type { ApiCore, AfpDocument, SearchQueryParams } from 'afpnews-api';
+import { textContent, toolError, TRUNCATION_HINT, buildPaginationLine, parseDocuments } from '../utils/format.js';
 import {
   formatMediaDocument,
   formatMediaDocumentsAsJson,
@@ -18,10 +18,13 @@ import {
 
 const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sortOrder', 'offset', 'facets']);
 
+// uno/class/urgency/published + creator/country/city/advisory/bagItem sont déjà là pour l'affichage ;
+// created/revision/provider/status/lang sont en plus exigés par parseDocument() (DocumentSourceSchema).
 const MEDIA_API_FIELDS = [
   'uno', 'title', 'caption', 'creditLine', 'creator',
   'country', 'city', 'published', 'urgency', 'class',
   'aspectRatios', 'advisory', 'bagItem',
+  'created', 'revision', 'provider', 'status', 'lang',
 ] as const;
 
 const inputSchema = z.object({
@@ -48,21 +51,21 @@ const inputSchema = z.object({
 
 type SearchMediaInput = z.infer<typeof inputSchema>;
 
-function buildMediaDocument(raw: any): AFPMediaDocument {
+function buildMediaDocument(doc: AfpDocument): AFPMediaDocument {
   return {
-    uno: raw.uno,
-    title: raw.title,
-    caption: Array.isArray(raw.caption) ? raw.caption[0] : raw.caption,
-    creditLine: raw.creditLine,
-    creator: raw.creator,
-    country: raw.country,
-    city: raw.city,
-    published: raw.published,
-    urgency: raw.urgency,
-    class: raw.class,
-    aspectRatios: raw.aspectRatios,
-    advisory: raw.advisory,
-    renditions: extractRenditions(raw.bagItem ?? []),
+    uno: doc.uno,
+    title: doc.title,
+    caption: doc.medias[0]?.caption,
+    creditLine: doc.creditLine,
+    creator: doc.creator,
+    country: doc.country.name ?? doc.country.id,
+    city: doc.city,
+    published: doc.published.toISOString(),
+    urgency: doc.urgency,
+    class: doc.class,
+    aspectRatios: doc.aspectRatios,
+    advisory: doc.advisory,
+    renditions: extractRenditions(doc.medias[0]?.renditions ?? []),
   };
 }
 
@@ -117,13 +120,13 @@ Examples:
         ...(facets ?? {}),
       };
 
-      const { documents: rawDocs, count } = await apicore.search(request as any, [...MEDIA_API_FIELDS]);
+      const { documents: rawDocs, count } = await apicore.search(request as SearchQueryParams, [...MEDIA_API_FIELDS]);
 
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
-      const docs = (rawDocs as any[]).map(buildMediaDocument);
+      const docs = parseDocuments(rawDocs).map(buildMediaDocument);
       const currentOffset = offset ?? 0;
 
       if (format === 'json') {
