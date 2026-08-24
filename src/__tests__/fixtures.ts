@@ -16,7 +16,7 @@ export const FIXTURE_DOC: AFPDocument = {
   status: 'Usable',
   signal: 'update',
   advisory: 'CORRECTION',
-  // Requis par le modèle canonique afpnews-api (AfpDocument), consommé par afp_get_article.
+  // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
   'class': 'text',
   urgency: 4,
   created: '2026-02-14T10:00:00Z',
@@ -31,6 +31,12 @@ export const FIXTURE_DOC_MINIMAL: AFPDocument = {
   lang: 'en',
   genre: 'factcheck',
   news: ['Only one paragraph.'],
+  'class': 'factcheck',
+  urgency: 4,
+  created: '2026-02-14T11:00:00Z',
+  revision: 1,
+  provider: 'AFP',
+  status: 'Usable',
 };
 
 export function makeDocs(count: number): AFPDocument[] {
@@ -41,5 +47,11 @@ export function makeDocs(count: number): AFPDocument[] {
     lang: 'fr',
     genre: 'news',
     news: ['Paragraph 1', 'Paragraph 2'],
+    'class': 'text',
+    urgency: 4,
+    created: '2026-02-14T09:00:00Z',
+    revision: 1,
+    provider: 'AFP',
+    status: 'Usable',
   }));
 }

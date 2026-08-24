@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
-import { textContent, toolError, formatDocumentOutput } from '../utils/format.js';
+import { textContent, toolError, formatDocumentOutput, parseDocuments } from '../utils/format.js';
 import { DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
 import {
   formatErrorMessage,
@@ -46,10 +46,11 @@ Examples:
   inputSchema,
   handler: async (apicore: ApiCore, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
     try {
-      const { documents, count } = await apicore.mlt(uno, lang, size);
+      const { documents: rawDocuments, count } = await apicore.mlt(uno, lang, size);
       if (count === 0) {
         return { content: [textContent('No similar articles found.')] };
       }
+      const documents = parseDocuments(rawDocuments);
 
       return formatDocumentOutput(documents, format, {
         fields: fields ?? [...DEFAULT_OUTPUT_FIELDS],

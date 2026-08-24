@@ -1,13 +1,15 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
+import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import {
   MARKDOWN_API_FIELDS,
   textContent,
   toolError,
   buildPaginationLine,
   formatDocumentOutput,
+  parseDocuments,
+  toApiFields,
 } from '../utils/format.js';
-import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS, type DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
   GENRE_EXCLUSIONS,
@@ -108,15 +110,16 @@ Examples:
       }
       const effectiveFullText = preset ? true : fullText;
 
-      const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
+      const outputFields: DocField[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
         ? [...MARKDOWN_API_FIELDS]
-        : [...new Set(['afpshortid', 'uno', ...outputFields])];
+        : toApiFields([...new Set<DocField>(['afpshortid', 'uno', ...outputFields])]);
 
-      const { documents, count } = await apicore.search(request as any, apiFields);
+      const { documents: rawDocuments, count } = await apicore.search(request as SearchQueryParams, apiFields);
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
+      const documents = parseDocuments(rawDocuments);
 
       const currentOffset = offset ?? 0;
 
