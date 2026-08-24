@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { ApiCore } from "afpnews-api";
 import { registerTools } from "./tools/index.js";
 import { registerResources } from "./resources/index.js";

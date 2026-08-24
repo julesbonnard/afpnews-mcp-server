@@ -1,9 +1,22 @@
-import { type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import {
+  createMcpHandler,
+  requireBearerAuth,
+  oauthMetadataResponse,
+  getOAuthProtectedResourceMetadataUrl,
+  checkResourceAllowed,
+  originValidationResponse,
+  localhostAllowedOrigins,
+  OAuthError,
+  OAuthErrorCode,
+  type OAuthTokenVerifier,
+  type OAuthMetadata,
+  type AuthMetadataOptions,
+  type McpRequestContext,
+} from '@modelcontextprotocol/server';
 import { Elysia, t, status } from 'elysia';
 import { rateLimit } from 'elysia-rate-limit';
 import { createServer, type AfpAuthToken } from '../mcp-server.js';
-import { deriveKey, encryptAfpToken, decryptAfpToken, encryptAfpRefreshToken, decryptAfpRefreshToken, type AfpTokenPayload } from './tokens.js';
+import { deriveKey, encryptAfpToken, decryptAfpToken, encryptAfpRefreshToken, decryptAfpRefreshToken } from './tokens.js';
 import { buildLoginPage, buildAllowedUris, isAllowedRedirectUri } from './login-page.js';
 import { ApiCore } from 'afpnews-api';
 import { createHash } from 'node:crypto';
@@ -14,7 +27,6 @@ type HttpConfig = {
   jwtSecret: string;
   serverUrl: string;
   port: number;
-  sessionTtlMs: number;
 };
 
 function resolveHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
@@ -30,13 +42,10 @@ function resolveHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
   const port = parseInt(env.PORT || '3000', 10);
   if (isNaN(port) || port <= 0) throw new Error('PORT must be a positive integer');
 
-  const sessionTtlMs = parseInt(env.MCP_SESSION_TTL || '3600000', 10);
-  if (isNaN(sessionTtlMs) || sessionTtlMs <= 0) throw new Error('MCP_SESSION_TTL must be a positive integer (milliseconds)');
-
   const afpBaseUrl = env.APICORE_BASE_URL?.trim();
   if (!afpBaseUrl) throw new Error('APICORE_BASE_URL environment variable is required');
 
-  return { apiKey, afpBaseUrl, jwtSecret, serverUrl, port, sessionTtlMs };
+  return { apiKey, afpBaseUrl, jwtSecret, serverUrl, port };
 }
 
 const registerBodySchema = t.Object(
@@ -61,7 +70,7 @@ const oauthTokenBodySchema = t.Object({
 }, { additionalProperties: true });
 
 export async function startHttpServer() {
-  const { apiKey, afpBaseUrl, jwtSecret, serverUrl, port, sessionTtlMs } = resolveHttpConfig();
+  const { apiKey, afpBaseUrl, jwtSecret, serverUrl, port } = resolveHttpConfig();
 
   const allowedUris = buildAllowedUris();
   console.debug(`Allowed redirect URIs: localhost/* + ${allowedUris.filter(u => !u.includes('localhost')).join(', ')}`);
@@ -69,20 +78,32 @@ export async function startHttpServer() {
   const accessKey = deriveKey(jwtSecret, 'access-token');
   const refreshKey = deriveKey(jwtSecret, 'refresh-token');
 
-  type Session = { transport: WebStandardStreamableHTTPServerTransport; server: McpServer; lastAccessedAt: number; username: string };
-  const sessions = new Map<string, Session>();
+  // The `/mcp` endpoint is this server's only protected resource (RFC 8707 /
+  // RFC 9728) — every issued token is bound to it via the `aud` claim.
+  const resourceUrl = new URL(`${serverUrl}/mcp`);
+  const protectedResourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(resourceUrl);
+
+  const oauthMetadata: OAuthMetadata = {
+    issuer: serverUrl,
+    authorization_endpoint: `${serverUrl}/oauth/authorize`,
+    token_endpoint: `${serverUrl}/oauth/token`,
+    registration_endpoint: `${serverUrl}/oauth/register`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'],
+  };
+  const authMetadataOptions: AuthMetadataOptions = {
+    oauthMetadata,
+    resourceServerUrl: resourceUrl,
+    resourceName: 'AFP News MCP',
+  };
 
   type AuthCode = { username: string; afpToken: AfpAuthToken; redirectUri: string; codeChallenge: string; expiresAt: number };
   const authCodes = new Map<string, AuthCode>();
 
   setInterval(() => {
     const now = Date.now();
-    for (const [sid, session] of sessions) {
-      if (now - session.lastAccessedAt > sessionTtlMs) {
-        sessions.delete(sid);
-        console.debug(`Session ${sid} expired`);
-      }
-    }
     for (const [code, data] of authCodes) {
       if (now > data.expiresAt) authCodes.delete(code);
     }
@@ -96,6 +117,7 @@ export async function startHttpServer() {
       rt: afpToken.refreshToken,
       exp: afpToken.tokenExpires,
       u: username,
+      aud: resourceUrl.toString(),
     });
     const refreshToken = await encryptAfpRefreshToken(refreshKey, afpToken.refreshToken, username);
     const expiresIn = Math.max(60, Math.floor((afpToken.tokenExpires - Date.now()) / 1000));
@@ -105,86 +127,66 @@ export async function startHttpServer() {
   const ipGenerator = (req: Request) =>
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
 
+  // Resource Server verifier: our own AFP-token JWE doubles as the MCP
+  // bearer token, so verification is decryption + audience binding rather
+  // than introspection against a separate Authorization Server.
+  const verifier: OAuthTokenVerifier = {
+    async verifyAccessToken(token) {
+      const payload = await decryptAfpToken(accessKey, token).catch(() => null);
+      if (!payload) throw new OAuthError(OAuthErrorCode.InvalidToken, 'Invalid or expired token');
+      if (!payload.aud || !checkResourceAllowed({ requestedResource: payload.aud, configuredResource: resourceUrl })) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, 'Token was not issued for this resource');
+      }
+      return {
+        token,
+        clientId: payload.u,
+        scopes: [],
+        expiresAt: Math.floor(payload.exp / 1000),
+        resource: resourceUrl,
+        extra: { accessToken: payload.at, refreshToken: payload.rt },
+      };
+    },
+  };
+  const authGate = requireBearerAuth({ verifier, resourceMetadataUrl: protectedResourceMetadataUrl });
+  const mcpOriginHostnames = [resourceUrl.hostname, ...localhostAllowedOrigins()];
+
+  // Stateless per-request serving (spec 2026-07-28): a fresh McpServer is
+  // built from the request's own bearer token, so no session store is
+  // needed and any instance behind a load balancer can serve any request.
+  const mcpHandler = createMcpHandler(
+    async (ctx: McpRequestContext) => {
+      const extra = ctx.authInfo?.extra as { accessToken: string; refreshToken: string } | undefined;
+      if (!extra) throw new Error('Missing AFP auth context');
+      return createServer({
+        apiKey,
+        baseUrl: afpBaseUrl,
+        authToken: {
+          accessToken: extra.accessToken,
+          refreshToken: extra.refreshToken,
+          tokenExpires: (ctx.authInfo?.expiresAt ?? 0) * 1000,
+        },
+      });
+    },
+    { legacy: 'stateless', onerror: (error) => console.error('MCP handler error:', error) },
+  );
+
   async function handleMcpRequest(request: Request, body: unknown): Promise<Response> {
-    const authHeader = request.headers.get('authorization');
+    const rejected = originValidationResponse(request, mcpOriginHostnames);
+    if (rejected) return rejected;
 
-    if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json({ error: 'Bearer token required' }, {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Bearer' },
-      });
-    }
+    const auth = await authGate(request);
+    if (auth instanceof Response) return auth;
 
-    const token = authHeader.slice(7);
-    let afpPayload: AfpTokenPayload;
-
-    try {
-      afpPayload = await decryptAfpToken(accessKey, token);
-    } catch {
-      return Response.json({ error: 'Invalid or expired token' }, {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' },
-      });
-    }
-
-    const sessionId = request.headers.get('mcp-session-id');
-
-    if (sessionId && sessions.has(sessionId)) {
-      const session = sessions.get(sessionId)!;
-      if (session.username !== afpPayload.u) {
-        return Response.json({ error: 'Token does not match session' }, { status: 401 });
-      }
-      session.lastAccessedAt = Date.now();
-      return session.transport.handleRequest(request, { parsedBody: body });
-    }
-
-    if (sessionId) {
-      return Response.json({ error: 'Session not found' }, { status: 404 });
-    }
-
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
-    });
-
-    const server = await createServer({
-      apiKey,
-      authToken: { accessToken: afpPayload.at, refreshToken: afpPayload.rt, tokenExpires: afpPayload.exp },
-      baseUrl: afpBaseUrl,
-    });
-    await server.connect(transport);
-
-    transport.onclose = () => {
-      const sid = transport.sessionId;
-      if (sid) {
-        sessions.delete(sid);
-        console.debug(`Session ${sid} closed`);
-      }
-    };
-
-    const response = await transport.handleRequest(request, { parsedBody: body });
-
-    const sid = transport.sessionId;
-    if (sid) {
-      sessions.set(sid, { transport, server, lastAccessedAt: Date.now(), username: afpPayload.u });
-      console.debug(`Session ${sid} created (user: ${afpPayload.u})`);
-    }
-
-    return response;
+    return mcpHandler.fetch(request, { authInfo: auth, parsedBody: body });
   }
 
   new Elysia()
     .use(rateLimit({ max: 20, duration: 60_000, generator: ipGenerator }))
     .get('/health', () => ({ status: 'ok' }))
-    .get('/.well-known/oauth-authorization-server', () => ({
-      issuer: serverUrl,
-      authorization_endpoint: `${serverUrl}/oauth/authorize`,
-      token_endpoint: `${serverUrl}/oauth/token`,
-      registration_endpoint: `${serverUrl}/oauth/register`,
-      response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      code_challenge_methods_supported: ['S256'],
-      token_endpoint_auth_methods_supported: ['none'],
-    }))
+    .get('/.well-known/oauth-authorization-server', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
+    .get('/.well-known/oauth-protected-resource/mcp', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
+    .options('/.well-known/oauth-authorization-server', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
+    .options('/.well-known/oauth-protected-resource/mcp', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
     .post('/oauth/register', ({ body }) => {
       return status(201, {
         client_id: serverUrl,
@@ -282,7 +284,7 @@ export async function startHttpServer() {
 
       return status(400, { error: 'unsupported_grant_type' });
     }, { body: oauthTokenBodySchema })
-    .post('/mcp', ({ request, body }) => handleMcpRequest(request, body))
+    .all('/mcp', ({ request, body }) => handleMcpRequest(request, body))
     .listen(port, () => {
       console.log(`MCP HTTP server listening on port ${port}`);
     });

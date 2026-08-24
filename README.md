@@ -50,7 +50,10 @@ For local MCP clients like Claude Code or Claude Desktop:
 
 ### HTTP transport
 
-For remote or multi-user deployments. Users authenticate via OAuth2 PKCE using their AFP credentials.
+For remote or multi-user deployments. Stateless: each request is served by a fresh MCP server
+instance built from that request's own bearer token, so any number of instances can sit behind
+a plain round-robin load balancer with no sticky sessions or shared store. Users authenticate via
+OAuth2 PKCE using their AFP credentials.
 
 Required environment variables for HTTP mode:
 
@@ -64,7 +67,6 @@ PORT=3000
 ```
 
 Optional:
-- `MCP_SESSION_TTL` — session duration in milliseconds (default: 3600000 = 1h)
 - `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs
 
 ```bash
