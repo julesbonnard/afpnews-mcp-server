@@ -108,21 +108,12 @@ export async function startHttpServer() {
     resourceName: 'AFP News MCP',
   };
 
-  // The authorization code itself is a self-contained JWE (see tokens.ts) —
-  // no server-side lookup is needed to exchange it. The only state left
-  // here is this tiny single-use marker: it just needs to outlive the
-  // code's own TTL, and stores nothing sensitive (not even which code —
-  // only its opaque ciphertext). A future multi-instance/edge deployment
-  // could swap this Map for a shared "SET NX" style nonce store (Redis,
-  // Cloudflare KV, DynamoDB…) without touching the rest of the OAuth flow.
-  const consumedAuthCodes = new Map<string, number>();
-
-  setInterval(() => {
-    const now = Date.now();
-    for (const [code, expiresAt] of consumedAuthCodes) {
-      if (now > expiresAt) consumedAuthCodes.delete(code);
-    }
-  }, 60_000);
+  // The authorization code is a self-contained JWE (see tokens.ts) with no
+  // backing server-side state at all — not even a "consumed" marker, so
+  // this server can run with zero infrastructure (e.g. a Cloudflare Worker
+  // with no KV/Redis). There is no single-use enforcement: its short TTL
+  // is the only thing bounding a replay window. See the comment on
+  // AuthCodePayload in tokens.ts for the full trade-off.
 
   const makeAfpClient = () => new ApiCore({ baseUrl: afpBaseUrl, apiKey });
 
@@ -260,9 +251,6 @@ export async function startHttpServer() {
         if (!code || !code_verifier || !redirect_uri) {
           return status(400, { error: 'invalid_request', error_description: 'Missing code, code_verifier or redirect_uri' });
         }
-        if (consumedAuthCodes.has(code)) {
-          return status(400, { error: 'invalid_grant', error_description: 'Auth code already used' });
-        }
         let authCode: Awaited<ReturnType<typeof decryptAuthCode>>;
         try {
           authCode = await decryptAuthCode(authCodeKey, code);
@@ -276,9 +264,6 @@ export async function startHttpServer() {
         if (authCode.redirectUri !== redirect_uri) {
           return status(400, { error: 'invalid_grant', error_description: 'redirect_uri mismatch' });
         }
-        // Marked for at least the code's own max lifetime (5 min) — the
-        // JWE's own expiry, checked above, is what actually bounds replay.
-        consumedAuthCodes.set(code, Date.now() + 5 * 60 * 1000);
 
         return mintTokenResponse(
           { accessToken: authCode.at, refreshToken: authCode.rt, tokenExpires: authCode.exp },

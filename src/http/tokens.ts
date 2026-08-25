@@ -68,11 +68,18 @@ export async function decryptAfpRefreshToken(key: Uint8Array, token: string): Pr
 
 // Authorization code: self-contained (the pending AFP token + PKCE
 // challenge + redirect_uri travel inside the JWE itself), so exchanging it
-// needs no server-side lookup — only a short-lived single-use marker,
-// tracked separately by the caller, is still local state.
+// needs no server-side state at all — a deliberate trade-off for
+// zero-infrastructure hosting (e.g. Cloudflare Workers with no KV/Redis):
+// there is no single-use enforcement, only this short expiry bounding the
+// replay window. A leaked, still-valid code can be exchanged more than
+// once; PKCE remains the actual protection against code interception
+// (replay additionally requires the code_verifier, which never travels
+// with the code). If single-use enforcement is ever needed, track a
+// "consumed" marker for just this string, keyed on nothing else, so a
+// KV/Redis "SET NX EX" fits in without touching the rest of this flow.
 export type AuthCodePayload = { u: string; at: string; rt: string; exp: number; aud: string; codeChallenge: string; redirectUri: string };
 
-const AUTH_CODE_TTL_SECONDS = 5 * 60;
+const AUTH_CODE_TTL_SECONDS = 60;
 
 export async function encryptAuthCode(key: Uint8Array, payload: AuthCodePayload): Promise<string> {
   return new EncryptJWT({

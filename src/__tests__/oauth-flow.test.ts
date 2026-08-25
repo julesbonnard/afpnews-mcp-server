@@ -1,6 +1,8 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { createHash } from 'node:crypto';
+import { EncryptJWT } from 'jose';
 import * as actualApi from 'afpnews-api';
+import { deriveKey } from '../http/tokens.js';
 
 process.env.APICORE_API_KEY = 'test-key';
 process.env.APICORE_BASE_URL = 'https://fake.api.afp.com';
@@ -13,11 +15,11 @@ const base = 'http://localhost:4179';
 const redirectUri = 'https://claude.ai/api/mcp/auth_callback';
 
 // End-to-end coverage of the OAuth2 PKCE code flow, exercising the
-// self-contained authorization code (no server-side payload store — see
-// tokens.ts) end to end: minting, exchange, single-use enforcement, PKCE
-// verification, and the resulting bearer token authenticating /mcp.
+// self-contained authorization code (no server-side state at all — see
+// tokens.ts): minting, exchange, PKCE verification, expiry, and the
+// resulting bearer token authenticating /mcp.
 describe('OAuth2 PKCE code flow', () => {
-  it('mints a code, exchanges it once, rejects replay and wrong PKCE, and authenticates /mcp', async () => {
+  it('mints a code, exchanges it, rejects wrong PKCE and expired codes, and authenticates /mcp', async () => {
     mock.module('afpnews-api', () => ({
       ...actualApi,
       ApiCore: class {
@@ -69,15 +71,31 @@ describe('OAuth2 PKCE code flow', () => {
     expect(tokens.access_token).toBeTruthy();
     expect(tokens.refresh_token).toBeTruthy();
 
-    // Same code used twice — single-use enforcement.
+    // Deliberate trade-off (no server-side state — see tokens.ts): the same
+    // still-valid code CAN be exchanged again. Only its short TTL bounds
+    // replay, not single-use enforcement.
     const replayRes = await exchangeCode(code, codeVerifier);
-    expect(replayRes.status).toBe(400);
-    expect((await replayRes.json()).error).toBe('invalid_grant');
+    expect(replayRes.status).toBe(200);
 
     // Fresh code, wrong verifier — PKCE enforcement.
     const code2 = await mintCode();
     const badVerifierRes = await exchangeCode(code2, 'wrong-verifier');
     expect(badVerifierRes.status).toBe(400);
+
+    // An expired code (crafted directly, rather than waiting out the real
+    // TTL) is rejected.
+    const authCodeKey = await deriveKey(process.env.JWT_SECRET!, 'auth-code');
+    const expiredCode = await new EncryptJWT({
+      u: 'jdoe', at: 'access', rt: 'refresh', texp: Date.now() + 60_000,
+      aud: `${base}/mcp`, cc: codeChallenge, ru: redirectUri,
+    })
+      .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+      .setIssuedAt()
+      .setExpirationTime('-1s')
+      .encrypt(authCodeKey);
+    const expiredRes = await exchangeCode(expiredCode, codeVerifier);
+    expect(expiredRes.status).toBe(400);
+    expect((await expiredRes.json()).error).toBe('invalid_grant');
 
     // The minted access token authenticates a real /mcp call.
     const mcpRes = await fetch(`${base}/mcp`, {
