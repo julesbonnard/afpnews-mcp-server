@@ -3,12 +3,17 @@ main = "src/http/worker.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Non-secret configuration. Replace MCP_SERVER_URL with your actual
-# workers.dev subdomain (or custom domain) after your first `wrangler
-# deploy` — it must be a valid URL, not a placeholder like this one.
+# Custom Domain (jub.cool must already be an active zone on this Cloudflare
+# account). Wrangler provisions the DNS record + SSL automatically on
+# `wrangler deploy` — no manual DNS setup needed.
+[[routes]]
+pattern = "afpnews-mcp.jub.cool"
+custom_domain = true
+
+# Non-secret configuration.
 [vars]
-APICORE_BASE_URL = "https://api.afp.com"
-MCP_SERVER_URL = "https://afpnews-mcp-server.example.workers.dev"
+APICORE_BASE_URL = "https://afp-apicore-prod.afp.com"
+MCP_SERVER_URL = "https://afpnews-mcp.jub.cool"
 
 # Secrets (do NOT put real values here — use `wrangler secret put <NAME>`):
 #   APICORE_API_KEY
