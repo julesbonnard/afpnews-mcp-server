@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MCP (Model Context Protocol) server that exposes AFP news tools for LLM-based editors (Continue, Claude Code, etc.). Supports stdio and HTTP (Streamable HTTP) transports.
+MCP (Model Context Protocol) server that exposes AFP news tools for LLM-based editors (Continue, Claude Code, etc.). Supports stdio and HTTP (stateless Streamable HTTP) transports, targeting the 2026-07-28 MCP spec via the `@modelcontextprotocol/server` v2 SDK.
 
 ## Commands
 
@@ -42,8 +42,9 @@ src/
 │   ├── index.ts          # registerResources() MCP glue
 │   └── topics.ts         # TOPICS inline + resource handler
 ├── http/
-│   ├── server.ts         # Elysia HTTP server + OAuth2 PKCE auth
-│   ├── tokens.ts         # JWT helpers (encrypt/decrypt AFP tokens)
+│   ├── server.ts         # resolveHttpConfig() + createHttpApp() (Hono, platform-agnostic) + startHttpServer() (Bun)
+│   ├── worker.ts         # Cloudflare Worker entry point — same createHttpApp(), config from the `env` binding
+│   ├── tokens.ts         # JWT helpers (encrypt/decrypt AFP tokens, self-contained auth code)
 │   └── login-page.ts     # OAuth login page + redirect URI helpers
 ├── stdio/
 │   └── server.ts         # stdio transport entry
@@ -54,9 +55,9 @@ src/
 ```
 
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
-2. Registers MCP tools via `@modelcontextprotocol/sdk`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
+2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
 3. Authenticates with username/password on first call, then reuses or refreshes the token for subsequent queries
-4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Elysia + Streamable HTTP with OAuth2 PKCE per-session)
+4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Hono + `createMcpHandler()` — a fresh `McpServer` per request, no session store or other server-side state, OAuth2 PKCE per-request bearer token). HTTP has two entry points sharing the same `createHttpApp()`: `startHttpServer()` (Bun, `Bun.serve`) and `worker.ts` (Cloudflare Worker, `export default { fetch }`) — see "Cloudflare Workers" in README.md for deployment.
 
 ### Definitions-First Pattern
 
@@ -87,9 +88,10 @@ Required:
 - `MCP_TRANSPORT=http`
 
 Optional:
-- `PORT` — HTTP server port (default: 3000)
-- `MCP_SESSION_TTL` — Session duration in milliseconds (default: 3600000 = 1h)
+- `PORT` — HTTP server port (default: 3000; ignored on Cloudflare Workers, which has no port to bind)
 - `MCP_ALLOWED_REDIRECT_URIS` — Comma-separated list of allowed OAuth redirect URIs
+
+On Workers, these are read from the `env` binding (`wrangler.toml` `[vars]` + `wrangler secret put`) instead of `process.env`, which doesn't exist there — see `src/http/worker.ts` and README.md.
 
 ## Key Details
 

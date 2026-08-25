@@ -50,7 +50,10 @@ For local MCP clients like Claude Code or Claude Desktop:
 
 ### HTTP transport
 
-For remote or multi-user deployments. Users authenticate via OAuth2 PKCE using their AFP credentials.
+For remote or multi-user deployments. Stateless: each request is served by a fresh MCP server
+instance built from that request's own bearer token, so any number of instances can sit behind
+a plain round-robin load balancer with no sticky sessions or shared store. Users authenticate via
+OAuth2 PKCE using their AFP credentials.
 
 Required environment variables for HTTP mode:
 
@@ -64,7 +67,6 @@ PORT=3000
 ```
 
 Optional:
-- `MCP_SESSION_TTL` — session duration in milliseconds (default: 3600000 = 1h)
 - `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs
 
 ```bash
@@ -86,6 +88,30 @@ docker run \
   -p 3000:3000 \
   afpnews-mcp
 ```
+
+### Cloudflare Workers
+
+The HTTP transport is built as a plain [Hono](https://hono.dev) app with no server-side state
+(the OAuth authorization code and the bearer tokens are all self-contained), so it also runs as a
+Cloudflare Worker via `src/http/worker.ts` — no KV, Durable Objects, or other bindings needed.
+
+```bash
+bunx wrangler login
+bunx wrangler secret put APICORE_API_KEY
+bunx wrangler secret put JWT_SECRET
+```
+
+Edit `wrangler.toml`'s `[vars]` (`APICORE_BASE_URL`, `MCP_SERVER_URL` — the latter must match your
+actual `*.workers.dev` subdomain or custom domain), then:
+
+```bash
+bun run dev:worker      # local dev server via workerd (bunx wrangler dev)
+bun run deploy:worker   # bunx wrangler deploy
+```
+
+Rate limiting isn't implemented in-process (it would be per-isolate and largely pointless on the
+edge) — use [Cloudflare's own Rate Limiting](https://developers.cloudflare.com/waf/rate-limiting-rules/)
+in front of the Worker instead.
 
 ### As a library (without MCP server dependency)
 

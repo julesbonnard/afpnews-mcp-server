@@ -4,9 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "Node",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["node", "bun"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "src/__tests__"]

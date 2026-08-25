@@ -54,8 +54,8 @@ export function buildLoginPage(params: {
       try {
         const res = await fetch('/oauth/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
             grant_type: 'afp_credentials',
             username: document.getElementById('username').value,
             password: document.getElementById('password').value,
@@ -92,8 +92,11 @@ export function buildLoginPage(params: {
 // - explicit https URIs: Claude Web + MCP_ALLOWED_REDIRECT_URIS env var
 const BUILTIN_ALLOWED_URIS = ['https://claude.ai/api/mcp/auth_callback'];
 
-export function buildAllowedUris(): string[] {
-  const extra = process.env.MCP_ALLOWED_REDIRECT_URIS;
+// `env` defaults to `process.env` (Bun) but takes a plain object so the
+// same function works from a Cloudflare Worker's `env` binding, which
+// isn't `process.env` — see src/http/worker.ts.
+export function buildAllowedUris(env: Record<string, string | undefined> = process.env): string[] {
+  const extra = env.MCP_ALLOWED_REDIRECT_URIS;
   if (!extra) return BUILTIN_ALLOWED_URIS;
   return [...BUILTIN_ALLOWED_URIS, ...extra.split(',').map(s => s.trim()).filter(Boolean)];
 }
