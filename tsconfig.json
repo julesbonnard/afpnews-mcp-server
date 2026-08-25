@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "strict": true,
     "outDir": "dist",
-    "types": ["node"]
+    "types": ["node", "bun"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "src/__tests__"]

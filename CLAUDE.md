@@ -42,7 +42,7 @@ src/
 │   ├── index.ts          # registerResources() MCP glue
 │   └── topics.ts         # TOPICS inline + resource handler
 ├── http/
-│   ├── server.ts         # Elysia HTTP server + OAuth2 PKCE auth
+│   ├── server.ts         # Hono HTTP server + OAuth2 PKCE auth
 │   ├── tokens.ts         # JWT helpers (encrypt/decrypt AFP tokens)
 │   └── login-page.ts     # OAuth login page + redirect URI helpers
 ├── stdio/
@@ -56,7 +56,7 @@ src/
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
 2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
 3. Authenticates with username/password on first call, then reuses or refreshes the token for subsequent queries
-4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Elysia + `createMcpHandler()` — a fresh `McpServer` per request, no session store, OAuth2 PKCE per-request bearer token)
+4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Hono + `createMcpHandler()` — a fresh `McpServer` per request, no session store or other server-side state, OAuth2 PKCE per-request bearer token; runs via `Bun.serve`, but the Hono app itself has no Bun-specific code, so it's a short step from here to a Cloudflare Worker if that's ever pursued)
 
 ### Definitions-First Pattern
 

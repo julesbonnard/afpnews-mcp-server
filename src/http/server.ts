@@ -1,10 +1,11 @@
+import { Hono, type Context } from 'hono';
+import { originValidation } from '@modelcontextprotocol/hono';
 import {
   createMcpHandler,
   requireBearerAuth,
   oauthMetadataResponse,
   getOAuthProtectedResourceMetadataUrl,
   checkResourceAllowed,
-  originValidationResponse,
   localhostAllowedOrigins,
   OAuthError,
   OAuthErrorCode,
@@ -13,8 +14,6 @@ import {
   type AuthMetadataOptions,
   type McpRequestContext,
 } from '@modelcontextprotocol/server';
-import { Elysia, t, status } from 'elysia';
-import { rateLimit } from 'elysia-rate-limit';
 import { createServer, type AfpAuthToken } from '../mcp-server.js';
 import {
   deriveKey,
@@ -56,26 +55,10 @@ function resolveHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
   return { apiKey, afpBaseUrl, jwtSecret, serverUrl, port };
 }
 
-const registerBodySchema = t.Object(
-  { redirect_uris: t.Optional(t.Array(t.String())) },
-  { additionalProperties: true },
-);
-const authorizeQuerySchema = t.Object({
-  redirect_uri: t.Optional(t.String()),
-  code_challenge: t.Optional(t.String()),
-  state: t.Optional(t.String()),
-  client_id: t.Optional(t.String()),
-});
-const oauthTokenBodySchema = t.Object({
-  grant_type: t.String(),
-  username: t.Optional(t.String()),
-  password: t.Optional(t.String()),
-  redirect_uri: t.Optional(t.String()),
-  code_challenge: t.Optional(t.String()),
-  code: t.Optional(t.String()),
-  code_verifier: t.Optional(t.String()),
-  refresh_token: t.Optional(t.String()),
-}, { additionalProperties: true });
+// Rate limiting (elysia-rate-limit in the previous Elysia version) is left
+// to the hosting platform — e.g. Cloudflare's own Rate Limiting — rather
+// than a hand-rolled in-process counter, which would be per-isolate-only
+// and thus pointless on an edge deployment anyway.
 
 export async function startHttpServer() {
   const { apiKey, afpBaseUrl, jwtSecret, serverUrl, port } = resolveHttpConfig();
@@ -130,9 +113,6 @@ export async function startHttpServer() {
     return { access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token: refreshToken };
   };
 
-  const ipGenerator = (req: Request) =>
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
-
   // Resource Server verifier: our own AFP-token JWE doubles as the MCP
   // bearer token, so verification is decryption + audience binding rather
   // than introspection against a separate Authorization Server.
@@ -176,127 +156,141 @@ export async function startHttpServer() {
     { legacy: 'stateless', onerror: (error) => console.error('MCP handler error:', error) },
   );
 
-  async function handleMcpRequest(request: Request, body: unknown): Promise<Response> {
-    const rejected = originValidationResponse(request, mcpOriginHostnames);
-    if (rejected) return rejected;
+  const app = new Hono();
 
-    const auth = await authGate(request);
-    if (auth instanceof Response) return auth;
+  app.get('/health', (c) => c.json({ status: 'ok' }));
 
-    return mcpHandler.fetch(request, { authInfo: auth, parsedBody: body });
-  }
+  const wellKnown = (c: Context) => oauthMetadataResponse(c.req.raw, authMetadataOptions) ?? c.notFound();
+  app.get('/.well-known/oauth-authorization-server', wellKnown);
+  app.get('/.well-known/oauth-protected-resource/mcp', wellKnown);
+  app.options('/.well-known/oauth-authorization-server', wellKnown);
+  app.options('/.well-known/oauth-protected-resource/mcp', wellKnown);
 
-  new Elysia()
-    .use(rateLimit({ max: 20, duration: 60_000, generator: ipGenerator }))
-    .get('/health', () => ({ status: 'ok' }))
-    .get('/.well-known/oauth-authorization-server', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
-    .get('/.well-known/oauth-protected-resource/mcp', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
-    .options('/.well-known/oauth-authorization-server', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
-    .options('/.well-known/oauth-protected-resource/mcp', ({ request }) => oauthMetadataResponse(request, authMetadataOptions) ?? status(404))
-    .post('/oauth/register', ({ body }) => {
-      return status(201, {
-        client_id: serverUrl,
-        client_id_issued_at: Math.floor(Date.now() / 1000),
-        redirect_uris: body.redirect_uris ?? [],
-        grant_types: ['authorization_code', 'refresh_token'],
-        response_types: ['code'],
-        token_endpoint_auth_method: 'none',
-      });
-    }, { body: registerBodySchema })
-    .get('/oauth/authorize', ({ query, set }) => {
-      const { redirect_uri, code_challenge, state, client_id } = query;
-      if (!redirect_uri || !code_challenge) {
-        return status(400, 'Missing required OAuth2 parameters');
+  app.post('/oauth/register', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    return c.json({
+      client_id: serverUrl,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      redirect_uris: Array.isArray(body?.redirect_uris) ? body.redirect_uris : [],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    }, 201);
+  });
+
+  app.get('/oauth/authorize', (c) => {
+    const redirect_uri = c.req.query('redirect_uri');
+    const code_challenge = c.req.query('code_challenge');
+    const state = c.req.query('state');
+    const client_id = c.req.query('client_id');
+    if (!redirect_uri || !code_challenge) {
+      return c.text('Missing required OAuth2 parameters', 400);
+    }
+    if (!isAllowedRedirectUri(redirect_uri, allowedUris)) {
+      return c.text('Invalid redirect_uri: not in the allowed list', 400);
+    }
+    return c.html(buildLoginPage({ redirectUri: redirect_uri, codeChallenge: code_challenge, state, clientId: client_id }), 200, {
+      'Content-Security-Policy': "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'",
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+    });
+  });
+
+  app.post('/oauth/token', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return c.json({ error: 'invalid_request', error_description: 'Invalid JSON body' }, 400);
+    }
+    const { grant_type } = body;
+
+    if (grant_type === 'afp_credentials') {
+      const { username: reqUsername, password: reqPassword, redirect_uri, code_challenge } = body;
+      if (!reqUsername || !reqPassword || !redirect_uri || !code_challenge) {
+        return c.json({ error: 'invalid_request', error_description: 'Missing required fields' }, 400);
       }
       if (!isAllowedRedirectUri(redirect_uri, allowedUris)) {
-        return status(400, 'Invalid redirect_uri: not in the allowed list');
+        return c.json({ error: 'invalid_request', error_description: 'Invalid redirect_uri' }, 400);
       }
-      set.headers['Content-Type'] = 'text/html; charset=utf-8';
-      set.headers['Content-Security-Policy'] = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'";
-      set.headers['X-Frame-Options'] = 'DENY';
-      set.headers['X-Content-Type-Options'] = 'nosniff';
-      return buildLoginPage({ redirectUri: redirect_uri, codeChallenge: code_challenge, state, clientId: client_id });
-    }, { query: authorizeQuerySchema })
-    .post('/oauth/token', async ({ body }) => {
-      const { grant_type } = body;
-
-      if (grant_type === 'afp_credentials') {
-        const { username: reqUsername, password: reqPassword, redirect_uri, code_challenge } = body;
-        if (!reqUsername || !reqPassword || !redirect_uri || !code_challenge) {
-          return status(400, { error: 'invalid_request', error_description: 'Missing required fields' });
-        }
-        if (!isAllowedRedirectUri(redirect_uri, allowedUris)) {
-          return status(400, { error: 'invalid_request', error_description: 'Invalid redirect_uri' });
-        }
-        let afpToken: AfpAuthToken;
-        try {
-          afpToken = await makeAfpClient().authenticate({ username: reqUsername, password: reqPassword });
-        } catch {
-          return status(401, { error: 'invalid_grant', error_description: 'Identifiants AFP invalides' });
-        }
-        const code = await encryptAuthCode(authCodeKey, {
-          u: reqUsername,
-          at: afpToken.accessToken,
-          rt: afpToken.refreshToken,
-          exp: afpToken.tokenExpires,
-          aud: resourceUrl.toString(),
-          codeChallenge: code_challenge,
-          redirectUri: redirect_uri,
-        });
-        return { code };
+      let afpToken: AfpAuthToken;
+      try {
+        afpToken = await makeAfpClient().authenticate({ username: reqUsername, password: reqPassword });
+      } catch {
+        return c.json({ error: 'invalid_grant', error_description: 'Identifiants AFP invalides' }, 401);
       }
+      const code = await encryptAuthCode(authCodeKey, {
+        u: reqUsername,
+        at: afpToken.accessToken,
+        rt: afpToken.refreshToken,
+        exp: afpToken.tokenExpires,
+        aud: resourceUrl.toString(),
+        codeChallenge: code_challenge,
+        redirectUri: redirect_uri,
+      });
+      return c.json({ code });
+    }
 
-      if (grant_type === 'authorization_code') {
-        const { code, code_verifier, redirect_uri } = body;
-        if (!code || !code_verifier || !redirect_uri) {
-          return status(400, { error: 'invalid_request', error_description: 'Missing code, code_verifier or redirect_uri' });
-        }
-        let authCode: Awaited<ReturnType<typeof decryptAuthCode>>;
-        try {
-          authCode = await decryptAuthCode(authCodeKey, code);
-        } catch {
-          return status(400, { error: 'invalid_grant', error_description: 'Auth code expired or invalid' });
-        }
-        const expectedChallenge = await sha256Base64Url(code_verifier);
-        if (expectedChallenge !== authCode.codeChallenge) {
-          return status(400, { error: 'invalid_grant', error_description: 'PKCE verification failed' });
-        }
-        if (authCode.redirectUri !== redirect_uri) {
-          return status(400, { error: 'invalid_grant', error_description: 'redirect_uri mismatch' });
-        }
-
-        return mintTokenResponse(
-          { accessToken: authCode.at, refreshToken: authCode.rt, tokenExpires: authCode.exp },
-          authCode.u,
-        );
+    if (grant_type === 'authorization_code') {
+      const { code, code_verifier, redirect_uri } = body;
+      if (!code || !code_verifier || !redirect_uri) {
+        return c.json({ error: 'invalid_request', error_description: 'Missing code, code_verifier or redirect_uri' }, 400);
+      }
+      let authCode: Awaited<ReturnType<typeof decryptAuthCode>>;
+      try {
+        authCode = await decryptAuthCode(authCodeKey, code);
+      } catch {
+        return c.json({ error: 'invalid_grant', error_description: 'Auth code expired or invalid' }, 400);
+      }
+      const expectedChallenge = await sha256Base64Url(code_verifier);
+      if (expectedChallenge !== authCode.codeChallenge) {
+        return c.json({ error: 'invalid_grant', error_description: 'PKCE verification failed' }, 400);
+      }
+      if (authCode.redirectUri !== redirect_uri) {
+        return c.json({ error: 'invalid_grant', error_description: 'redirect_uri mismatch' }, 400);
       }
 
-      if (grant_type === 'refresh_token') {
-        const { refresh_token } = body;
-        if (!refresh_token) {
-          return status(400, { error: 'invalid_request', error_description: 'Missing refresh_token' });
-        }
-        let afpRefreshToken: string;
-        let username: string;
-        try {
-          ({ afpRefreshToken, username } = await decryptAfpRefreshToken(refreshKey, refresh_token));
-        } catch {
-          return status(401, { error: 'invalid_grant', error_description: 'Invalid refresh token' });
-        }
-        try {
-          const client = makeAfpClient();
-          client.token = { accessToken: '', refreshToken: afpRefreshToken, tokenExpires: 0, authType: 'credentials' };
-          const newAfpToken: AfpAuthToken = await client.authenticate();
-          return mintTokenResponse(newAfpToken, username);
-        } catch {
-          return status(401, { error: 'invalid_grant', error_description: 'Refresh token expired, please sign in again' });
-        }
-      }
+      return c.json(await mintTokenResponse(
+        { accessToken: authCode.at, refreshToken: authCode.rt, tokenExpires: authCode.exp },
+        authCode.u,
+      ));
+    }
 
-      return status(400, { error: 'unsupported_grant_type' });
-    }, { body: oauthTokenBodySchema })
-    .all('/mcp', ({ request, body }) => handleMcpRequest(request, body))
-    .listen(port, () => {
-      console.log(`MCP HTTP server listening on port ${port}`);
-    });
+    if (grant_type === 'refresh_token') {
+      const { refresh_token } = body;
+      if (!refresh_token) {
+        return c.json({ error: 'invalid_request', error_description: 'Missing refresh_token' }, 400);
+      }
+      let afpRefreshToken: string;
+      let username: string;
+      try {
+        ({ afpRefreshToken, username } = await decryptAfpRefreshToken(refreshKey, refresh_token));
+      } catch {
+        return c.json({ error: 'invalid_grant', error_description: 'Invalid refresh token' }, 401);
+      }
+      try {
+        const client = makeAfpClient();
+        client.token = { accessToken: '', refreshToken: afpRefreshToken, tokenExpires: 0, authType: 'credentials' };
+        const newAfpToken: AfpAuthToken = await client.authenticate();
+        return c.json(await mintTokenResponse(newAfpToken, username));
+      } catch {
+        return c.json({ error: 'invalid_grant', error_description: 'Refresh token expired, please sign in again' }, 401);
+      }
+    }
+
+    return c.json({ error: 'unsupported_grant_type' }, 400);
+  });
+
+  // originValidation is the official Hono adapter's equivalent of the
+  // framework-neutral originValidationResponse() used before — scoped to
+  // /mcp only, matching the SDK's documented createMcpHandler() mounting
+  // pattern (the metadata/oauth routes above need to stay reachable
+  // cross-origin for OAuth discovery). No parsedBody needed: nothing reads
+  // the request body before it reaches mcpHandler.fetch.
+  app.all('/mcp', originValidation(mcpOriginHostnames), async (c) => {
+    const auth = await authGate(c.req.raw);
+    if (auth instanceof Response) return auth;
+    return mcpHandler.fetch(c.req.raw, { authInfo: auth });
+  });
+
+  Bun.serve({ port, fetch: app.fetch });
+  console.log(`MCP HTTP server listening on port ${port}`);
 }
