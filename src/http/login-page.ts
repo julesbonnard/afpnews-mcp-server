@@ -54,8 +54,8 @@ export function buildLoginPage(params: {
       try {
         const res = await fetch('/oauth/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
             grant_type: 'afp_credentials',
             username: document.getElementById('username').value,
             password: document.getElementById('password').value,

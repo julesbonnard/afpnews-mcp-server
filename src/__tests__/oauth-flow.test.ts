@@ -40,11 +40,13 @@ describe('OAuth2 PKCE code flow', () => {
     const codeVerifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
     const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
+    // RFC 6749 §4.1.3: the token endpoint takes application/x-www-form-urlencoded
+    // (what real OAuth2 clients like MCP Inspector and Claude.ai send).
     const mintCode = async () => {
       const res = await fetch(`${base}/oauth/token`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
           grant_type: 'afp_credentials',
           username: 'jdoe',
           password: 'whatever',
@@ -59,8 +61,8 @@ describe('OAuth2 PKCE code flow', () => {
     const exchangeCode = (code: string, verifier: string) =>
       fetch(`${base}/oauth/token`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri }),
       });
 
     const code = await mintCode();
@@ -96,23 +98,6 @@ describe('OAuth2 PKCE code flow', () => {
     const expiredRes = await exchangeCode(expiredCode, codeVerifier);
     expect(expiredRes.status).toBe(400);
     expect((await expiredRes.json()).error).toBe('invalid_grant');
-
-    // RFC 6749 §4.1.3: real OAuth2 clients (MCP Inspector, Claude.ai, ...)
-    // POST the token endpoint as application/x-www-form-urlencoded, not
-    // JSON — must be accepted too, not just our own login page's JSON.
-    const code3 = await mintCode();
-    const formRes = await fetch(`${base}/oauth/token`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: code3,
-        code_verifier: codeVerifier,
-        redirect_uri: redirectUri,
-      }),
-    });
-    expect(formRes.status).toBe(200);
-    expect((await formRes.json()).access_token).toBeTruthy();
 
     // The minted access token authenticates a real /mcp call.
     const mcpRes = await fetch(`${base}/mcp`, {
