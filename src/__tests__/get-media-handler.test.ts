@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { afpGetMediaTool } from '../tools/get-media.js';
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -9,6 +9,14 @@ function getText(result: any, index = 0): string {
 
 describe('afpGetMediaTool.handler', () => {
   beforeEach(() => {
+    globalThis.fetch = ORIGINAL_FETCH;
+  });
+
+  // `beforeEach` only guards tests within this file — without this, a mock
+  // left on `globalThis.fetch` by this file's last test leaks into whichever
+  // test file bun:test happens to run next (e.g. any test hitting a real
+  // HTTP server via `fetch()`).
+  afterAll(() => {
     globalThis.fetch = ORIGINAL_FETCH;
   });
 

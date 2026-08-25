@@ -16,10 +16,18 @@ import {
 import { Elysia, t, status } from 'elysia';
 import { rateLimit } from 'elysia-rate-limit';
 import { createServer, type AfpAuthToken } from '../mcp-server.js';
-import { deriveKey, encryptAfpToken, decryptAfpToken, encryptAfpRefreshToken, decryptAfpRefreshToken } from './tokens.js';
+import {
+  deriveKey,
+  sha256Base64Url,
+  encryptAfpToken,
+  decryptAfpToken,
+  encryptAfpRefreshToken,
+  decryptAfpRefreshToken,
+  encryptAuthCode,
+  decryptAuthCode,
+} from './tokens.js';
 import { buildLoginPage, buildAllowedUris, isAllowedRedirectUri } from './login-page.js';
 import { ApiCore } from 'afpnews-api';
-import { createHash } from 'node:crypto';
 
 type HttpConfig = {
   apiKey: string;
@@ -75,8 +83,9 @@ export async function startHttpServer() {
   const allowedUris = buildAllowedUris();
   console.debug(`Allowed redirect URIs: localhost/* + ${allowedUris.filter(u => !u.includes('localhost')).join(', ')}`);
 
-  const accessKey = deriveKey(jwtSecret, 'access-token');
-  const refreshKey = deriveKey(jwtSecret, 'refresh-token');
+  const accessKey = await deriveKey(jwtSecret, 'access-token');
+  const refreshKey = await deriveKey(jwtSecret, 'refresh-token');
+  const authCodeKey = await deriveKey(jwtSecret, 'auth-code');
 
   // The `/mcp` endpoint is this server's only protected resource (RFC 8707 /
   // RFC 9728) — every issued token is bound to it via the `aud` claim.
@@ -99,13 +108,19 @@ export async function startHttpServer() {
     resourceName: 'AFP News MCP',
   };
 
-  type AuthCode = { username: string; afpToken: AfpAuthToken; redirectUri: string; codeChallenge: string; expiresAt: number };
-  const authCodes = new Map<string, AuthCode>();
+  // The authorization code itself is a self-contained JWE (see tokens.ts) —
+  // no server-side lookup is needed to exchange it. The only state left
+  // here is this tiny single-use marker: it just needs to outlive the
+  // code's own TTL, and stores nothing sensitive (not even which code —
+  // only its opaque ciphertext). A future multi-instance/edge deployment
+  // could swap this Map for a shared "SET NX" style nonce store (Redis,
+  // Cloudflare KV, DynamoDB…) without touching the rest of the OAuth flow.
+  const consumedAuthCodes = new Map<string, number>();
 
   setInterval(() => {
     const now = Date.now();
-    for (const [code, data] of authCodes) {
-      if (now > data.expiresAt) authCodes.delete(code);
+    for (const [code, expiresAt] of consumedAuthCodes) {
+      if (now > expiresAt) consumedAuthCodes.delete(code);
     }
   }, 60_000);
 
@@ -228,13 +243,14 @@ export async function startHttpServer() {
         } catch {
           return status(401, { error: 'invalid_grant', error_description: 'Identifiants AFP invalides' });
         }
-        const code = crypto.randomUUID();
-        authCodes.set(code, {
-          username: reqUsername,
-          afpToken,
-          redirectUri: redirect_uri,
+        const code = await encryptAuthCode(authCodeKey, {
+          u: reqUsername,
+          at: afpToken.accessToken,
+          rt: afpToken.refreshToken,
+          exp: afpToken.tokenExpires,
+          aud: resourceUrl.toString(),
           codeChallenge: code_challenge,
-          expiresAt: Date.now() + 5 * 60 * 1000,
+          redirectUri: redirect_uri,
         });
         return { code };
       }
@@ -244,20 +260,30 @@ export async function startHttpServer() {
         if (!code || !code_verifier || !redirect_uri) {
           return status(400, { error: 'invalid_request', error_description: 'Missing code, code_verifier or redirect_uri' });
         }
-        const stored = authCodes.get(code);
-        if (!stored || Date.now() > stored.expiresAt) {
-          return status(400, { error: 'invalid_grant', error_description: 'Auth code expired or not found' });
+        if (consumedAuthCodes.has(code)) {
+          return status(400, { error: 'invalid_grant', error_description: 'Auth code already used' });
         }
-        const expectedChallenge = createHash('sha256').update(code_verifier).digest('base64url');
-        if (expectedChallenge !== stored.codeChallenge) {
+        let authCode: Awaited<ReturnType<typeof decryptAuthCode>>;
+        try {
+          authCode = await decryptAuthCode(authCodeKey, code);
+        } catch {
+          return status(400, { error: 'invalid_grant', error_description: 'Auth code expired or invalid' });
+        }
+        const expectedChallenge = await sha256Base64Url(code_verifier);
+        if (expectedChallenge !== authCode.codeChallenge) {
           return status(400, { error: 'invalid_grant', error_description: 'PKCE verification failed' });
         }
-        if (stored.redirectUri !== redirect_uri) {
+        if (authCode.redirectUri !== redirect_uri) {
           return status(400, { error: 'invalid_grant', error_description: 'redirect_uri mismatch' });
         }
-        authCodes.delete(code);
+        // Marked for at least the code's own max lifetime (5 min) — the
+        // JWE's own expiry, checked above, is what actually bounds replay.
+        consumedAuthCodes.set(code, Date.now() + 5 * 60 * 1000);
 
-        return mintTokenResponse(stored.afpToken, stored.username);
+        return mintTokenResponse(
+          { accessToken: authCode.at, refreshToken: authCode.rt, tokenExpires: authCode.exp },
+          authCode.u,
+        );
       }
 
       if (grant_type === 'refresh_token') {
