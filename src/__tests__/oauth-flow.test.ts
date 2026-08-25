@@ -97,6 +97,23 @@ describe('OAuth2 PKCE code flow', () => {
     expect(expiredRes.status).toBe(400);
     expect((await expiredRes.json()).error).toBe('invalid_grant');
 
+    // RFC 6749 §4.1.3: real OAuth2 clients (MCP Inspector, Claude.ai, ...)
+    // POST the token endpoint as application/x-www-form-urlencoded, not
+    // JSON — must be accepted too, not just our own login page's JSON.
+    const code3 = await mintCode();
+    const formRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code3,
+        code_verifier: codeVerifier,
+        redirect_uri: redirectUri,
+      }),
+    });
+    expect(formRes.status).toBe(200);
+    expect((await formRes.json()).access_token).toBeTruthy();
+
     // The minted access token authenticates a real /mcp call.
     const mcpRes = await fetch(`${base}/mcp`, {
       method: 'POST',

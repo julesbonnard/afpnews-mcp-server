@@ -206,10 +206,27 @@ export async function createHttpApp(config: HttpConfig) {
     });
   });
 
+  // RFC 6749 §4.1.3/§6: real OAuth2 clients (MCP Inspector, Claude.ai, ...)
+  // POST the token endpoint as application/x-www-form-urlencoded, not JSON.
+  // JSON is also accepted since our own login page (login-page.ts) posts
+  // the afp_credentials grant as JSON.
+  const parseTokenRequestBody = async (c: Context): Promise<Record<string, any> | null> => {
+    const contentType = c.req.header('content-type') ?? '';
+    try {
+      if (contentType.includes('application/json')) {
+        const body = await c.req.json();
+        return body && typeof body === 'object' ? body : null;
+      }
+      return await c.req.parseBody();
+    } catch {
+      return null;
+    }
+  };
+
   app.post('/oauth/token', async (c) => {
-    const body = await c.req.json().catch(() => null);
-    if (!body || typeof body !== 'object') {
-      return c.json({ error: 'invalid_request', error_description: 'Invalid JSON body' }, 400);
+    const body = await parseTokenRequestBody(c);
+    if (!body) {
+      return c.json({ error: 'invalid_request', error_description: 'Invalid request body' }, 400);
     }
     const { grant_type } = body;
 
