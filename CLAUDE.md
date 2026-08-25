@@ -42,8 +42,9 @@ src/
 │   ├── index.ts          # registerResources() MCP glue
 │   └── topics.ts         # TOPICS inline + resource handler
 ├── http/
-│   ├── server.ts         # Hono HTTP server + OAuth2 PKCE auth
-│   ├── tokens.ts         # JWT helpers (encrypt/decrypt AFP tokens)
+│   ├── server.ts         # resolveHttpConfig() + createHttpApp() (Hono, platform-agnostic) + startHttpServer() (Bun)
+│   ├── worker.ts         # Cloudflare Worker entry point — same createHttpApp(), config from the `env` binding
+│   ├── tokens.ts         # JWT helpers (encrypt/decrypt AFP tokens, self-contained auth code)
 │   └── login-page.ts     # OAuth login page + redirect URI helpers
 ├── stdio/
 │   └── server.ts         # stdio transport entry
@@ -56,7 +57,7 @@ src/
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
 2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
 3. Authenticates with username/password on first call, then reuses or refreshes the token for subsequent queries
-4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Hono + `createMcpHandler()` — a fresh `McpServer` per request, no session store or other server-side state, OAuth2 PKCE per-request bearer token; runs via `Bun.serve`, but the Hono app itself has no Bun-specific code, so it's a short step from here to a Cloudflare Worker if that's ever pursued)
+4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Hono + `createMcpHandler()` — a fresh `McpServer` per request, no session store or other server-side state, OAuth2 PKCE per-request bearer token). HTTP has two entry points sharing the same `createHttpApp()`: `startHttpServer()` (Bun, `Bun.serve`) and `worker.ts` (Cloudflare Worker, `export default { fetch }`) — see "Cloudflare Workers" in README.md for deployment.
 
 ### Definitions-First Pattern
 
@@ -87,8 +88,10 @@ Required:
 - `MCP_TRANSPORT=http`
 
 Optional:
-- `PORT` — HTTP server port (default: 3000)
+- `PORT` — HTTP server port (default: 3000; ignored on Cloudflare Workers, which has no port to bind)
 - `MCP_ALLOWED_REDIRECT_URIS` — Comma-separated list of allowed OAuth redirect URIs
+
+On Workers, these are read from the `env` binding (`wrangler.toml` `[vars]` + `wrangler secret put`) instead of `process.env`, which doesn't exist there — see `src/http/worker.ts` and README.md.
 
 ## Key Details
 

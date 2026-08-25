@@ -28,15 +28,21 @@ import {
 import { buildLoginPage, buildAllowedUris, isAllowedRedirectUri } from './login-page.js';
 import { ApiCore } from 'afpnews-api';
 
-type HttpConfig = {
+export type HttpConfig = {
   apiKey: string;
   afpBaseUrl: string | undefined;
   jwtSecret: string;
   serverUrl: string;
   port: number;
+  allowedUris: string[];
 };
 
-function resolveHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
+// The only function that touches raw environment variables. `env` defaults
+// to `process.env` (Bun) but takes a plain object so the same function
+// works from a Cloudflare Worker's `env` binding — see src/http/worker.ts.
+// Everything below this point (createHttpApp) only ever reads from the
+// returned HttpConfig, never from `process.env`/`env` directly.
+export function resolveHttpConfig(env: Record<string, string | undefined> = process.env): HttpConfig {
   const apiKey = env.APICORE_API_KEY?.trim();
   if (!apiKey) throw new Error('APICORE_API_KEY environment variable is required');
 
@@ -52,7 +58,9 @@ function resolveHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
   const afpBaseUrl = env.APICORE_BASE_URL?.trim();
   if (!afpBaseUrl) throw new Error('APICORE_BASE_URL environment variable is required');
 
-  return { apiKey, afpBaseUrl, jwtSecret, serverUrl, port };
+  const allowedUris = buildAllowedUris(env);
+
+  return { apiKey, afpBaseUrl, jwtSecret, serverUrl, port, allowedUris };
 }
 
 // Rate limiting (elysia-rate-limit in the previous Elysia version) is left
@@ -60,10 +68,12 @@ function resolveHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
 // than a hand-rolled in-process counter, which would be per-isolate-only
 // and thus pointless on an edge deployment anyway.
 
-export async function startHttpServer() {
-  const { apiKey, afpBaseUrl, jwtSecret, serverUrl, port } = resolveHttpConfig();
+// Builds the Hono app from an already-resolved config. Platform-agnostic —
+// no `process.env`, no `Bun.*` — so it's shared verbatim between
+// startHttpServer() (Bun) and worker.ts (Cloudflare Workers).
+export async function createHttpApp(config: HttpConfig) {
+  const { apiKey, afpBaseUrl, jwtSecret, serverUrl, allowedUris } = config;
 
-  const allowedUris = buildAllowedUris();
   console.debug(`Allowed redirect URIs: localhost/* + ${allowedUris.filter(u => !u.includes('localhost')).join(', ')}`);
 
   const accessKey = await deriveKey(jwtSecret, 'access-token');
@@ -291,6 +301,15 @@ export async function startHttpServer() {
     return mcpHandler.fetch(c.req.raw, { authInfo: auth });
   });
 
-  Bun.serve({ port, fetch: app.fetch });
-  console.log(`MCP HTTP server listening on port ${port}`);
+  return app;
+}
+
+// Bun entry point — the only Bun-specific code in this file. A Cloudflare
+// Worker entry point instead builds the same app via createHttpApp() and
+// exports its `fetch` directly; see src/http/worker.ts.
+export async function startHttpServer() {
+  const config = resolveHttpConfig();
+  const app = await createHttpApp(config);
+  Bun.serve({ port: config.port, fetch: app.fetch });
+  console.log(`MCP HTTP server listening on port ${config.port}`);
 }

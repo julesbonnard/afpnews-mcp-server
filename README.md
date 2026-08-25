@@ -89,6 +89,30 @@ docker run \
   afpnews-mcp
 ```
 
+### Cloudflare Workers
+
+The HTTP transport is built as a plain [Hono](https://hono.dev) app with no server-side state
+(the OAuth authorization code and the bearer tokens are all self-contained), so it also runs as a
+Cloudflare Worker via `src/http/worker.ts` — no KV, Durable Objects, or other bindings needed.
+
+```bash
+bunx wrangler login
+bunx wrangler secret put APICORE_API_KEY
+bunx wrangler secret put JWT_SECRET
+```
+
+Edit `wrangler.toml`'s `[vars]` (`APICORE_BASE_URL`, `MCP_SERVER_URL` — the latter must match your
+actual `*.workers.dev` subdomain or custom domain), then:
+
+```bash
+bun run dev:worker      # local dev server via workerd (bunx wrangler dev)
+bun run deploy:worker   # bunx wrangler deploy
+```
+
+Rate limiting isn't implemented in-process (it would be per-isolate and largely pointless on the
+edge) — use [Cloudflare's own Rate Limiting](https://developers.cloudflare.com/waf/rate-limiting-rules/)
+in front of the Worker instead.
+
 ### As a library (without MCP server dependency)
 
 You can import pure definitions (tools, prompts, resources) and wire them into your own runtime:
