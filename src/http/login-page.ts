@@ -87,18 +87,20 @@ export function buildLoginPage(params: {
 </html>`;
 }
 
-// Security fix #2/#7: strict redirect_uri whitelist
-// - localhost/127.0.0.1 (any port): Claude Code local OAuth server
-// - explicit https URIs: Claude Web + MCP_ALLOWED_REDIRECT_URIS env var
-const BUILTIN_ALLOWED_URIS = ['https://claude.ai/api/mcp/auth_callback'];
-
+// Security fix #2/#7: strict redirect_uri whitelist. Every explicit https
+// callback (Claude, ChatGPT, Mistral, ...) is configured in one place, the
+// MCP_ALLOWED_REDIRECT_URIS env var — see wrangler.toml/.env.example for
+// the actual list. localhost/127.0.0.1 (any port — local MCP clients like
+// Claude Code) is handled separately in isAllowedRedirectUri() below since
+// it's a pattern, not an enumerable value.
+//
 // `env` defaults to `process.env` (Bun) but takes a plain object so the
 // same function works from a Cloudflare Worker's `env` binding, which
 // isn't `process.env` — see src/http/worker.ts.
 export function buildAllowedUris(env: Record<string, string | undefined> = process.env): string[] {
   const extra = env.MCP_ALLOWED_REDIRECT_URIS;
-  if (!extra) return BUILTIN_ALLOWED_URIS;
-  return [...BUILTIN_ALLOWED_URIS, ...extra.split(',').map(s => s.trim()).filter(Boolean)];
+  if (!extra) return [];
+  return extra.split(',').map(s => s.trim()).filter(Boolean);
 }
 
 export function isAllowedRedirectUri(uri: string, allowedUris: string[]): boolean {

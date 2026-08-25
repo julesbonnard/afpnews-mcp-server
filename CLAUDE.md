@@ -89,7 +89,7 @@ Required:
 
 Optional:
 - `PORT` — HTTP server port (default: 3000; ignored on Cloudflare Workers, which has no port to bind)
-- `MCP_ALLOWED_REDIRECT_URIS` — Comma-separated list of allowed OAuth redirect URIs
+- `MCP_ALLOWED_REDIRECT_URIS` — Comma-separated list of allowed OAuth redirect URIs. The single place to allowlist AI clients with a fixed callback URL (Claude, ChatGPT, Mistral...) — `localhost`/`127.0.0.1` is always allowed separately, no entry needed for local clients. See README.md for known values.
 
 On Workers, these are read from the `env` binding (`wrangler.toml` `[vars]` + `wrangler secret put`) instead of `process.env`, which doesn't exist there — see `src/http/worker.ts` and README.md.
 

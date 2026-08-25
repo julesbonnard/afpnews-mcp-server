@@ -10,6 +10,7 @@ process.env.JWT_SECRET = 'a-very-long-test-secret-of-32-chars-min';
 process.env.MCP_SERVER_URL = 'http://localhost:4179';
 process.env.MCP_TRANSPORT = 'http';
 process.env.PORT = '4179';
+process.env.MCP_ALLOWED_REDIRECT_URIS = 'https://claude.ai/api/mcp/auth_callback';
 
 const base = 'http://localhost:4179';
 const redirectUri = 'https://claude.ai/api/mcp/auth_callback';

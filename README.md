@@ -67,7 +67,17 @@ PORT=3000
 ```
 
 Optional:
-- `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs
+- `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs.
+  `localhost`/`127.0.0.1` (any port) is always allowed regardless of this list —
+  it covers any client that runs a local OAuth callback server (Claude Code,
+  MCP Inspector, most IDEs). This var is the single place to allowlist clients
+  with a fixed, non-localhost callback URL. Known ones:
+  - Claude: `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`
+  - ChatGPT: `https://chatgpt.com/connector_platform_oauth_redirect`, `https://chatgpt.com/oauth/callback`, `https://chat.openai.com/oauth/callback`
+  - Mistral (Le Chat): `https://callback.mistral.ai/v1/integrations_auth/oauth2_callback`
+
+  Add others as you connect new clients — the exact `redirect_uri` shows up in
+  the failed `/oauth/authorize` request when a client isn't allowlisted yet.
 
 ```bash
 bun src/index.ts
