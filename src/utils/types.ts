@@ -1,25 +1,3 @@
-export interface AFPDocument {
-  afpshortid?: string;
-  uno: string;
-  headline: string;
-  published: string;
-  lang: string;
-  genre: string;
-  news: string[];
-  status?: string;
-  signal?: string;
-  advisory?: string;
-  country?: string;
-  city?: string;
-  slug?: string[];
-  event?: string[];
-  'class'?: string;
-  revision?: number;
-  created?: string;
-  urgency?: number;
-  provider?: string;
-}
-
 export interface TextContent {
   type: 'text';
   text: string;

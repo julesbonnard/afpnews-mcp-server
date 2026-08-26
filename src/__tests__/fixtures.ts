@@ -1,5 +1,27 @@
 import { parseDocument } from 'afpnews-api';
-import type { AFPDocument } from '../utils/types.js';
+
+/** Champs bruts de l'API AFP pour un document — forme d'entrée de parseDocument(), fixtures de test uniquement. */
+interface AFPDocument {
+  afpshortid?: string;
+  uno: string;
+  headline: string;
+  published: string;
+  lang: string;
+  genre: string;
+  news: string[];
+  status?: string;
+  signal?: string;
+  advisory?: string;
+  country?: string;
+  city?: string;
+  slug?: string[];
+  event?: string[];
+  'class'?: string;
+  revision?: number;
+  created?: string;
+  urgency?: number;
+  provider?: string;
+}
 
 /**
  * Parse une liste de fixtures brutes via le vrai parseDocument() du SDK — pour construire une

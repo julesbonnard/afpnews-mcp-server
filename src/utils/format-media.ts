@@ -73,13 +73,12 @@ export function formatMediaDocument(doc: Partial<AFPMediaDocument> & { uno: stri
   return textContent(lines.join('\n').trimEnd());
 }
 
+/** Adapte l'AfpDocument canonique du SDK à la sortie publique (json/csv/markdown) de ce tool. */
 export function normalizeMediaDocument(doc: AfpDocument): AFPMediaDocument {
   return {
     uno: doc.uno,
     title: doc.title,
-    // Le caption d'une photo/graphique vit sur le media (bagItem), pas sur le document —
-    // seule la vidéo peuple doc.caption (première ligne de `caption` brut).
-    caption: doc.medias[0]?.caption ?? doc.caption,
+    caption: doc.caption,
     creditLine: doc.creditLine,
     creator: doc.creator,
     country: doc.country.name ?? doc.country.id,

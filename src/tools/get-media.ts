@@ -30,9 +30,7 @@ function formatFullMediaText(doc: AfpDocument, renditions: MediaRenditions, note
   lines.push(`**Urgency:** ${doc.urgency}`);
   if (doc.aspectRatios?.length) lines.push(`**Aspect:** ${doc.aspectRatios.join(', ')}`);
 
-  // Le caption d'une photo/graphique vit sur le media (bagItem), pas sur le document.
-  const caption = doc.medias[0]?.caption ?? doc.caption;
-  if (caption) lines.push(`\n${caption}`);
+  if (doc.caption) lines.push(`\n${doc.caption}`);
   if (doc.advisory) lines.push(`\n> ${doc.advisory}`);
 
   lines.push('\n**Renditions:**');
