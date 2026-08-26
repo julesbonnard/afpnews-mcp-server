@@ -1,4 +1,4 @@
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { createServer } from '../mcp-server.js';
 
 type StdioAuthConfig = { apiKey: string; username: string; password: string; baseUrl?: string };

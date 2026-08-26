@@ -2,7 +2,9 @@
 .DS_Store
 node_modules
 build
+.wrangler
 .continue
 .claude
 .cortex
 .agents
+docs

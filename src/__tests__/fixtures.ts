@@ -27,6 +27,20 @@ export const FIXTURE_DOC_MINIMAL: AFPDocument = {
   news: ['Only one paragraph.'],
 };
 
+export const FIXTURE_VIDEO_DOC: AFPDocument = {
+  uno: 'AFP-TEST-VID-001',
+  headline: 'Test Video Headline',
+  published: '2026-02-14T10:30:00Z',
+  lang: 'fr',
+  genre: 'STOCKSHOTS',
+  class: 'video',
+  news: [
+    '1. 00:00-00:12 Vue aérienne de la ville',
+    '2. 00:12-00:30 SOUNDBITE 1 - Jean Dupont, témoin',
+    '"Tout a commencé très vite"',
+  ],
+};
+
 export function makeDocs(count: number): AFPDocument[] {
   return Array.from({ length: count }, (_, i) => ({
     uno: `AFP-TEST-${String(i + 1).padStart(3, '0')}`,

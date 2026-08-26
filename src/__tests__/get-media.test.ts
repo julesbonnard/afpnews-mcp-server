@@ -25,10 +25,25 @@ describe('inferMimeType', () => {
 
 describe('selectRenditionForEmbed', () => {
   const renditions: MediaRenditions = {
+    quicklook: { href: 'https://example.com/quick.jpg', width: 245, height: 164, sizeInBytes: 14055 },
     thumbnail: { href: 'https://example.com/thumb.jpg', width: 320, height: 213, sizeInBytes: 33590 },
     preview:   { href: 'https://example.com/prev.jpg',  width: 1200, height: 800, sizeInBytes: 340621 },
     highdef:   { href: 'https://example.com/hd.jpg',    width: 3429, height: 2286, sizeInBytes: 5126566 },
   };
+
+  it('returns quicklook when explicitly requested and available', () => {
+    const r = selectRenditionForEmbed(renditions, 'quicklook');
+    expect(r?.href).toBe('https://example.com/quick.jpg');
+  });
+
+  it('downgrades to quicklook when thumbnail is absent and requested rendition exceeds 5MB', () => {
+    const noThumbnail: MediaRenditions = {
+      quicklook: { href: 'https://example.com/quick.jpg', width: 245, height: 164, sizeInBytes: 14055 },
+      highdef:   { href: 'https://example.com/hd.jpg',    width: 3429, height: 2286, sizeInBytes: 5126566 },
+    };
+    const r = selectRenditionForEmbed(noThumbnail, 'highdef');
+    expect(r?.href).toBe('https://example.com/quick.jpg');
+  });
 
   it('returns requested rendition when available and under size limit', () => {
     const r = selectRenditionForEmbed(renditions, 'preview');
@@ -61,5 +76,23 @@ describe('selectRenditionForEmbed', () => {
   it('returns undefined when no renditions available', () => {
     const r = selectRenditionForEmbed({}, 'preview');
     expect(r).toBeUndefined();
+  });
+
+  it('returns mockup when explicitly requested and available', () => {
+    const withMockup: MediaRenditions = {
+      ...renditions,
+      mockup: { href: 'https://example.com/mockup.jpg', width: 512, height: 342, sizeInBytes: 19989 },
+    };
+    const r = selectRenditionForEmbed(withMockup, 'mockup');
+    expect(r?.href).toBe('https://example.com/mockup.jpg');
+  });
+
+  it('downgrades to squared120 as last resort when nothing lighter is available', () => {
+    const squaredOnly: MediaRenditions = {
+      squared120: { href: 'https://example.com/sq120.jpg', width: 120, height: 120, sizeInBytes: 3696 },
+      highdef:    { href: 'https://example.com/hd.jpg',    width: 3429, height: 2286, sizeInBytes: 5126566 },
+    };
+    const r = selectRenditionForEmbed(squaredOnly, 'highdef');
+    expect(r?.href).toBe('https://example.com/sq120.jpg');
   });
 });

@@ -15,7 +15,7 @@ const inputSchema = z.object({
   lang: langEnum.describe("Language for results (e.g. 'en', 'fr')"),
   size: z.number().optional().describe('Number of similar articles to return (default 10)'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article excerpt), json (structured, no body), csv (tabular, no body).'),
-  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: afpshortid, uno, headline, published, lang, genre.'),
+  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
 });
 
 type FindSimilarInput = z.infer<typeof inputSchema>;
@@ -44,7 +44,7 @@ Examples:
   - Find similar articles in French: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "fr" }
   - Export similar as CSV: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "en", format: "csv", fields: ["uno", "headline"] }`,
   inputSchema,
-  handler: async (apicore: ApiCore, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
+  handler: async (apicore: Pick<ApiCore, 'mlt'>, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
     try {
       const { documents, count } = await apicore.mlt(uno, lang, size);
       if (count === 0) {

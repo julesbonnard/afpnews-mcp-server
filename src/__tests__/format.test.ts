@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { formatDocument, MARKDOWN_API_FIELDS } from '../utils/format.js';
-import { FIXTURE_DOC, FIXTURE_DOC_MINIMAL } from './fixtures.js';
+import { formatDocument, formatFullArticle, formatShotList, MARKDOWN_API_FIELDS } from '../utils/format.js';
+import { FIXTURE_DOC, FIXTURE_DOC_MINIMAL, FIXTURE_VIDEO_DOC } from './fixtures.js';
 
 describe('formatDocument', () => {
   it('returns { type: "text", text: string }', () => {
@@ -38,10 +38,10 @@ describe('formatDocument', () => {
     expect(result.text).not.toContain('Advisory:');
   });
 
-  it('truncates to 4 paragraphs when fullText=false', () => {
+  it('truncates to 2 paragraphs when fullText=false', () => {
     const result = formatDocument(FIXTURE_DOC, false);
-    expect(result.text).toContain('Fourth paragraph wraps up.');
-    expect(result.text).not.toContain('Fifth paragraph is extra content.');
+    expect(result.text).toContain('Second paragraph with more details.');
+    expect(result.text).not.toContain('Third paragraph continues.');
   });
 
   it('includes all paragraphs when fullText=true', () => {
@@ -62,5 +62,38 @@ describe('MARKDOWN_API_FIELDS', () => {
   it('does not contain published or afpshortid (derivable from UNO)', () => {
     expect(MARKDOWN_API_FIELDS).not.toContain('published');
     expect(MARKDOWN_API_FIELDS).not.toContain('afpshortid');
+  });
+});
+
+describe('formatShotList', () => {
+  it('renders a timecoded shot list for a video document', () => {
+    const out = formatShotList(FIXTURE_VIDEO_DOC);
+    expect(out).toContain('## Shot list');
+    expect(out).toContain('1. [00:00-00:12] Vue aérienne de la ville');
+    expect(out).toContain('2. [00:12-00:30] Jean Dupont, témoin');
+    expect(out).toContain('   "Tout a commencé très vite"');
+  });
+
+  it('returns null for non-video documents', () => {
+    expect(formatShotList(FIXTURE_DOC)).toBeNull();
+  });
+
+  it('returns null for a video whose news has no parseable shot', () => {
+    expect(formatShotList({ class: 'video', news: ['no timecode here'] })).toBeNull();
+  });
+});
+
+describe('formatFullArticle', () => {
+  it('uses the shot list as body for a video document', () => {
+    const result = formatFullArticle(FIXTURE_VIDEO_DOC);
+    expect(result.text).toContain('## Shot list');
+    expect(result.text).toContain('[00:00-00:12] Vue aérienne de la ville');
+    expect(result.text).toContain('**Class:** video');
+  });
+
+  it('keeps the plain text body for non-video documents', () => {
+    const result = formatFullArticle(FIXTURE_DOC);
+    expect(result.text).not.toContain('## Shot list');
+    expect(result.text).toContain('First paragraph of the article.');
   });
 });

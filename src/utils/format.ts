@@ -1,7 +1,37 @@
+import { parseShotList } from 'afpnews-api';
 import type { AFPDocument, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
 
-export const TRUNCATION_HINT = `\n\n---\n*Response truncated (exceeded ${CHARACTER_LIMIT} characters). Use a smaller \`size\` or add filters to reduce results.*`;
+const VIDEO_CLASSES = new Set(['video', 'videography']);
+
+/**
+ * Render a video shot list (timecodes + descriptions + soundbite quotes) from
+ * the raw `news` lines. Returns `null` when the document is not a video or when
+ * no shot could be parsed, so callers can fall back to the plain text body.
+ */
+export function formatShotList(doc: unknown): string | null {
+  const d = doc as AFPDocument;
+  if (!VIDEO_CLASSES.has(String(d['class']))) return null;
+
+  const news = Array.isArray(d.news) ? d.news : [];
+  const shots = parseShotList(news.join('\n'));
+  if (shots.length === 0) return null;
+
+  const lines = shots.map((shot) => {
+    const head = `${shot.numero}. [${shot.start}-${shot.end}] ${shot.description}`.trimEnd();
+    const quotes = shot.citations.map((c) => `   "${c.text}"`);
+    return [head, ...quotes].join('\n');
+  });
+
+  return `## Shot list\n\n${lines.join('\n')}`;
+}
+
+export function truncationHint(remaining?: number): string {
+  const suffix = remaining != null && remaining > 0
+    ? ` ${remaining} additional item(s) not returned.`
+    : '';
+  return `\n\n---\n*Response truncated.${suffix} Use a smaller \`size\`, add filters, or use \`offset\` to paginate.*`;
+}
 
 /** Fields requested from the API when rendering markdown output. */
 export const MARKDOWN_API_FIELDS = ['uno', 'status', 'signal', 'advisory', 'headline', 'news', 'lang', 'genre', 'event'] as const;
@@ -24,10 +54,10 @@ export function pickDocFields(doc: unknown, fields: string[]): Record<string, un
 export function truncateToLimit<T>(
   items: T[],
   serialize: (slice: T[]) => string,
-): { text: string; count: number; truncated: boolean } {
+): { text: string; count: number; truncated: boolean; remaining: number } {
   const full = serialize(items);
   if (full.length <= CHARACTER_LIMIT) {
-    return { text: full, count: items.length, truncated: false };
+    return { text: full, count: items.length, truncated: false, remaining: 0 };
   }
 
   let lo = 0;
@@ -41,57 +71,90 @@ export function truncateToLimit<T>(
     }
   }
 
-  return { text: serialize(items.slice(0, lo)), count: lo, truncated: true };
+  return { text: serialize(items.slice(0, lo)), count: lo, truncated: true, remaining: items.length - lo };
 }
 
 function formatDocumentsAsJsonInner(
   docs: unknown[],
   fields: string[],
   meta: Record<string, unknown> = {},
-): { content: TextContent; truncated: boolean } {
+): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
   const documents = docs.map(doc => pickDocFields(doc, fields));
-  const { text, count, truncated } = truncateToLimit(
+  const { text, count, truncated, remaining } = truncateToLimit(
     documents,
-    (slice) => JSON.stringify({ ...meta, shown: slice.length, truncated: slice.length < documents.length, documents: slice }, null, 2),
+    (slice) => JSON.stringify({ ...meta, shown: slice.length, truncated: slice.length < documents.length, remaining: documents.length - slice.length, documents: slice }, null, 2),
   );
-  return { content: textContent(text), truncated };
+  return { content: textContent(text), shown: count, truncated, remaining };
 }
 
 function formatDocumentsAsCsvInner(
   docs: unknown[],
   fields: string[],
-): { content: TextContent; truncated: boolean } {
+): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
   const rows = (docs as Record<string, unknown>[]).map(doc =>
     fields.map(f => escapeCsvValue(doc[f])).join(','),
   );
   const header = fields.join(',');
-  const { text, truncated } = truncateToLimit(
+  const { text, count, truncated, remaining } = truncateToLimit(
     rows,
     (slice) => [header, ...slice].join('\n'),
   );
-  return { content: textContent(text), truncated };
+  return { content: textContent(text), shown: count, truncated, remaining };
 }
 
-export function formatDocumentsAsJson(
-  docs: unknown[],
-  fields: string[],
-  meta: Record<string, unknown> = {},
-): TextContent {
-  return formatDocumentsAsJsonInner(docs, fields, meta).content;
+export function truncateContentItems(
+  prefix: TextContent[] | ((shown: number) => TextContent[]),
+  items: TextContent[],
+): { content: TextContent[]; shown: number; truncated: boolean; remaining: number } {
+  if (typeof prefix === 'function') {
+    let estimatedShown = items.length;
+
+    for (let i = 0; i < 3; i += 1) {
+      const result = truncateContentItemsWithPrefix(prefix(estimatedShown), items);
+      if (result.shown === estimatedShown || !result.truncated) {
+        return result;
+      }
+      estimatedShown = result.shown;
+    }
+
+    return truncateContentItemsWithPrefix(prefix(estimatedShown), items);
+  }
+
+  return truncateContentItemsWithPrefix(prefix, items);
 }
 
-export function formatDocumentsAsCsv(docs: unknown[], fields: string[]): TextContent {
-  return formatDocumentsAsCsvInner(docs, fields).content;
+function truncateContentItemsWithPrefix(
+  prefix: TextContent[],
+  items: TextContent[],
+): { content: TextContent[]; shown: number; truncated: boolean; remaining: number } {
+  const prefixLength = prefix.reduce((sum, item) => sum + item.text.length, 0);
+  let accumulated = prefixLength;
+  const result: TextContent[] = [...prefix];
+  let shown = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (accumulated + item.text.length <= CHARACTER_LIMIT) {
+      result.push(item);
+      accumulated += item.text.length;
+      shown += 1;
+      continue;
+    }
+
+    const remaining = items.length - shown;
+    result.push(textContent(truncationHint(remaining)));
+    return { content: result, shown, truncated: true, remaining };
+  }
+
+  return { content: result, shown, truncated: false, remaining: 0 };
 }
 
 export function formatDocument(doc: unknown, fullText = false): TextContent {
   const d = doc as AFPDocument;
 
-  const meta: string[] = [
-    `UNO: ${d.uno}`,
-    `Lang: ${d.lang}`,
-    `Genre: ${d.genre}`,
-  ];
+  const meta: string[] = [`UNO: ${d.uno}`];
+  if (d.lang) meta.push(`Lang: ${d.lang}`);
+  if (d.genre) meta.push(`Genre: ${d.genre}`);
   if (d.status) meta.push(`Status: ${d.status}`);
   if (d.signal) meta.push(`Signal: ${d.signal}`);
   if (d.advisory) meta.push(`Advisory: ${d.advisory}`);
@@ -125,7 +188,7 @@ export function formatFullArticle(doc: unknown): TextContent {
   if (flags) lines.push(flags);
 
   const meta = lines.join('\n');
-  const body = (Array.isArray(d.news) ? d.news : []).join('\n\n');
+  const body = formatShotList(d) ?? (Array.isArray(d.news) ? d.news : []).join('\n\n');
 
   return textContent(`## ${d.headline}\n\n${meta}\n\n---\n\n${body}`);
 }
@@ -141,26 +204,23 @@ export function formatDocumentOutput(
     fields: string[];
     fullText?: boolean;
     jsonMeta?: Record<string, unknown>;
-    markdownPrefix?: TextContent[];
+    markdownPrefix?: TextContent[] | ((shown: number) => TextContent[]);
   },
-): { content: TextContent[] } {
+): { content: TextContent[]; shown: number; truncated: boolean; remaining: number } {
   if (format === 'json') {
-    const { content, truncated } = formatDocumentsAsJsonInner(documents, opts.fields, opts.jsonMeta);
-    const result: TextContent[] = [content];
-    if (truncated) result.push(textContent(TRUNCATION_HINT));
-    return { content: result };
+    const { content, shown, truncated, remaining } = formatDocumentsAsJsonInner(documents, opts.fields, opts.jsonMeta);
+    return { content: [content], shown, truncated, remaining };
   }
   if (format === 'csv') {
-    const { content, truncated } = formatDocumentsAsCsvInner(documents, opts.fields);
+    const { content, shown, truncated, remaining } = formatDocumentsAsCsvInner(documents, opts.fields);
     const result: TextContent[] = [content];
-    if (truncated) result.push(textContent(TRUNCATION_HINT));
-    return { content: result };
+    if (truncated) result.push(textContent(truncationHint(remaining)));
+    return { content: result, shown, truncated, remaining };
   }
-  const content: TextContent[] = [
-    ...(opts.markdownPrefix ?? []),
-    ...documents.map(doc => formatDocument(doc, opts.fullText ?? false)),
-  ];
-  return { content: truncateIfNeeded(content) };
+  return truncateContentItems(
+    opts.markdownPrefix ?? [],
+    documents.map(doc => formatDocument(doc, opts.fullText ?? false)),
+  );
 }
 
 export function textContent(text: string): TextContent {
@@ -174,28 +234,7 @@ export function toolError(message: string) {
   };
 }
 
-export function truncateIfNeeded(content: TextContent[]): TextContent[] {
-  const totalLength = content.reduce((sum, c) => sum + c.text.length, 0);
-  if (totalLength <= CHARACTER_LIMIT) return content;
-
-  let accumulated = 0;
-  const truncated: TextContent[] = [];
-  for (const item of content) {
-    if (accumulated + item.text.length > CHARACTER_LIMIT) {
-      const remaining = CHARACTER_LIMIT - accumulated;
-      if (remaining > 100) {
-        truncated.push(textContent(item.text.slice(0, remaining) + '\n\n[...truncated]'));
-      }
-      break;
-    }
-    truncated.push(item);
-    accumulated += item.text.length;
-  }
-  truncated.push(textContent(TRUNCATION_HINT));
-  return truncated;
-}
-
 export function buildPaginationLine(shown: number, total: number, offset: number): string {
   const hasMore = total > offset + shown;
-  return `*Showing ${shown} of ${total} results (offset: ${offset}).${hasMore ? ` Use offset=${offset + shown} to see more.` : ''}*`;
+  return `*Showing ${shown} of ${total} results (offset: ${offset}).${hasMore ? ` Use \`offset: ${offset + shown}\` to see more.` : ''}*`;
 }

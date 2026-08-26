@@ -32,7 +32,7 @@ export function registerTools(ctx: ServerContext) {
         inputSchema: tool.inputSchema,
         annotations: READ_ONLY_ANNOTATIONS,
       },
-      async (args: Record<string, unknown>) => tool.handler(ctx.apicore, args as never),
+      async (args: Record<string, unknown>) => (tool.handler as any)(ctx.apicore, args),
     );
   }
 }

@@ -4,11 +4,13 @@ import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, for
 // Fixture bagItem reprenant la structure réelle AFP
 const FIXTURE_BAG_ITEM = [{
   medias: [
-    { role: 'Thumbnail',  sizeInBytes: 33590,   width: 320,  height: 213,  href: 'https://example.com/thumb.jpg',   type: 'Photo' },
-    { role: 'Preview',    sizeInBytes: 340621,  width: 1200, height: 800,  href: 'https://example.com/prev.jpg',    type: 'Photo' },
-    { role: 'Preview_B',  sizeInBytes: 596996,  width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg',  type: 'Photo' },
-    { role: 'HighDef',    sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg',      type: 'Photo' },
-    { role: 'Quicklook',  sizeInBytes: 14055,   width: 245,  height: 164,  href: 'https://example.com/quick.jpg',  type: 'Photo' },
+    { role: 'Thumbnail',   sizeInBytes: 33590,   width: 320,  height: 213,  href: 'https://example.com/thumb.jpg',   type: 'Photo' },
+    { role: 'Preview',     sizeInBytes: 340621,  width: 1200, height: 800,  href: 'https://example.com/prev.jpg',    type: 'Photo' },
+    { role: 'Preview_B',   sizeInBytes: 596996,  width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg',  type: 'Photo' },
+    { role: 'HighDef',     sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg',      type: 'Photo' },
+    { role: 'Quicklook',   sizeInBytes: 14055,   width: 245,  height: 164,  href: 'https://example.com/quick.jpg',   type: 'Photo' },
+    { role: 'Mockup',      sizeInBytes: 19989,   width: 512,  height: 342,  href: 'https://example.com/mockup.jpg',  type: 'Photo' },
+    { role: 'Squared120',  sizeInBytes: 3696,    width: 120,  height: 120,  href: 'https://example.com/sq120.jpg',   type: 'Photo' },
   ],
 }];
 
@@ -21,11 +23,14 @@ const FIXTURE_BAG_NO_PREVIEW = [{
 }];
 
 describe('MEDIA_RENDITION_ROLE_MAP', () => {
+  it('maps Quicklook → quicklook', () => expect(MEDIA_RENDITION_ROLE_MAP['Quicklook']).toBe('quicklook'));
   it('maps Thumbnail → thumbnail', () => expect(MEDIA_RENDITION_ROLE_MAP['Thumbnail']).toBe('thumbnail'));
   it('maps Preview → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview']).toBe('preview'));
   it('maps Preview_B → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_B']).toBe('preview'));
   it('maps Preview_W → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_W']).toBe('preview'));
   it('maps HighDef → highdef', () => expect(MEDIA_RENDITION_ROLE_MAP['HighDef']).toBe('highdef'));
+  it('maps Mockup → mockup', () => expect(MEDIA_RENDITION_ROLE_MAP['Mockup']).toBe('mockup'));
+  it('maps Squared120 → squared120', () => expect(MEDIA_RENDITION_ROLE_MAP['Squared120']).toBe('squared120'));
 });
 
 describe('extractRenditions', () => {
@@ -37,11 +42,17 @@ describe('extractRenditions', () => {
     expect(extractRenditions([{}])).toEqual({});
   });
 
-  it('extracts thumbnail, preview, highdef from standard bagItem', () => {
+  it('extracts squared120, quicklook, thumbnail, mockup, preview, highdef from standard bagItem', () => {
     const r = extractRenditions(FIXTURE_BAG_ITEM);
+    expect(r.squared120?.href).toBe('https://example.com/sq120.jpg');
+    expect(r.squared120?.width).toBe(120);
+    expect(r.quicklook?.href).toBe('https://example.com/quick.jpg');
+    expect(r.quicklook?.width).toBe(245);
     expect(r.thumbnail?.href).toBe('https://example.com/thumb.jpg');
     expect(r.thumbnail?.width).toBe(320);
     expect(r.thumbnail?.sizeInBytes).toBe(33590);
+    expect(r.mockup?.href).toBe('https://example.com/mockup.jpg');
+    expect(r.mockup?.width).toBe(512);
     expect(r.preview?.href).toBe('https://example.com/prev.jpg');
     expect(r.preview?.width).toBe(1200);
     expect(r.highdef?.href).toBe('https://example.com/hd.jpg');
@@ -58,9 +69,15 @@ describe('extractRenditions', () => {
     expect(r.preview?.width).toBe(1800);
   });
 
-  it('ignores unknown roles (Quicklook)', () => {
-    const r = extractRenditions(FIXTURE_BAG_ITEM);
-    expect(Object.keys(r)).not.toContain('quicklook');
+  it('ignores genuinely unknown roles', () => {
+    const bagWithUnknownRole = [{
+      medias: [
+        ...FIXTURE_BAG_ITEM[0].medias,
+        { role: 'SomeFutureRole', href: 'https://example.com/future.jpg', width: 999, height: 999, type: 'Photo' },
+      ],
+    }];
+    const r = extractRenditions(bagWithUnknownRole);
+    expect(Object.keys(r)).not.toContain('somefuturerole');
   });
 
   it('uses first bagItem only (index 0)', () => {
@@ -109,20 +126,14 @@ describe('formatMediaDocument', () => {
     expect(t).toContain('GBR');
   });
 
-  // La preview (meilleure qualité) est affichée inline à la place du thumbnail quand elle est disponible.
-  it('includes inline preview image (preferred over thumbnail)', () => {
+  it('includes inline thumbnail image', () => {
     const t = formatMediaDocument(doc).text;
-    expect(t).toContain('![A footballer heads the ball.](https://example.com/prev.jpg)');
-  });
-
-  it('falls back to inline thumbnail image when no preview', () => {
-    const docNoPreview = { ...doc, renditions: { thumbnail: doc.renditions.thumbnail, highdef: doc.renditions.highdef } };
-    const t = formatMediaDocument(docNoPreview).text;
     expect(t).toContain('![A footballer heads the ball.](https://example.com/thumb.jpg)');
   });
 
-  it('includes highdef link', () => {
+  it('includes preview and highdef links', () => {
     const t = formatMediaDocument(doc).text;
+    expect(t).toContain('[Preview 1200px](https://example.com/prev.jpg)');
     expect(t).toContain('[HighDef 3429px](https://example.com/hd.jpg)');
   });
 
@@ -154,7 +165,7 @@ describe('formatMediaDocumentsAsCsv', () => {
       class: 'picture',
       renditions: { thumbnail: { href: 'https://example.com/t.jpg', width: 320, height: 213 } },
     }];
-    const r = formatMediaDocumentsAsCsv(docs as any);
+    const r = formatMediaDocumentsAsCsv(docs);
     expect(r.content.text).toContain('newsml.test');
     expect(r.content.text).toContain('My Photo');
     expect(r.content.text).toContain('JANE / AFP');
@@ -167,13 +178,13 @@ describe('formatMediaDocumentsAsCsv', () => {
       caption: 'A caption, with "quotes"',
       renditions: {},
     }];
-    const r = formatMediaDocumentsAsCsv(docs as any);
+    const r = formatMediaDocumentsAsCsv(docs);
     expect(r.content.text).toContain('"A caption, with ""quotes"""');
   });
 
   it('handles missing thumbnail href gracefully', () => {
     const docs = [{ uno: 'newsml.test', renditions: {} }];
-    const r = formatMediaDocumentsAsCsv(docs as any);
+    const r = formatMediaDocumentsAsCsv(docs);
     expect(r.content.text).toContain('newsml.test');
   });
 });
@@ -185,13 +196,13 @@ describe('formatMediaDocumentsAsJson', () => {
   ];
 
   it('returns { content: TextContent, truncated: boolean }', () => {
-    const r = formatMediaDocumentsAsJson(docs as any);
+    const r = formatMediaDocumentsAsJson(docs);
     expect(r.content.type).toBe('text');
     expect(typeof r.truncated).toBe('boolean');
   });
 
   it('output JSON contains total metadata and documents array', () => {
-    const r = formatMediaDocumentsAsJson(docs as any, { total: 100, offset: 0 });
+    const r = formatMediaDocumentsAsJson(docs, { total: 100, offset: 0 });
     const parsed = JSON.parse(r.content.text);
     expect(parsed.total).toBe(100);
     expect(parsed.offset).toBe(0);
@@ -202,7 +213,7 @@ describe('formatMediaDocumentsAsJson', () => {
   });
 
   it('truncated flag is false when content is small', () => {
-    const r = formatMediaDocumentsAsJson(docs as any, { total: 100, offset: 0 });
+    const r = formatMediaDocumentsAsJson(docs, { total: 100, offset: 0 });
     expect(r.truncated).toBe(false);
   });
 
@@ -214,7 +225,7 @@ describe('formatMediaDocumentsAsJson', () => {
       caption: 'A very long caption that also takes up considerable space in the JSON output here',
       renditions: { thumbnail: { href: `https://example.com/thumb-${i}.jpg`, width: 320, height: 213 } },
     }));
-    const r = formatMediaDocumentsAsJson(largeDocs as any, { total: 500, offset: 0 });
+    const r = formatMediaDocumentsAsJson(largeDocs, { total: 500, offset: 0 });
     expect(r.truncated).toBe(true);
     const parsed = JSON.parse(r.content.text);
     expect(parsed.shown).toBeLessThan(500);
