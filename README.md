@@ -50,7 +50,10 @@ For local MCP clients like Claude Code or Claude Desktop:
 
 ### HTTP transport
 
-For remote or multi-user deployments. Users authenticate via OAuth2 PKCE using their AFP credentials.
+For remote or multi-user deployments. Stateless: each request is served by a fresh MCP server
+instance built from that request's own bearer token, so any number of instances can sit behind
+a plain round-robin load balancer with no sticky sessions or shared store. Users authenticate via
+OAuth2 PKCE using their AFP credentials.
 
 Required environment variables for HTTP mode:
 
@@ -64,8 +67,17 @@ PORT=3000
 ```
 
 Optional:
-- `MCP_SESSION_TTL` — session duration in milliseconds (default: 3600000 = 1h)
-- `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs
+- `MCP_ALLOWED_REDIRECT_URIS` — comma-separated list of allowed OAuth redirect URIs.
+  `localhost`/`127.0.0.1` (any port) is always allowed regardless of this list —
+  it covers any client that runs a local OAuth callback server (Claude Code,
+  MCP Inspector, most IDEs). This var is the single place to allowlist clients
+  with a fixed, non-localhost callback URL. Known ones:
+  - Claude: `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`
+  - ChatGPT: `https://chatgpt.com/connector_platform_oauth_redirect`, `https://chatgpt.com/oauth/callback`, `https://chat.openai.com/oauth/callback`
+  - Mistral (Le Chat): `https://callback.mistral.ai/v1/integrations_auth/oauth2_callback`
+
+  Add others as you connect new clients — the exact `redirect_uri` shows up in
+  the failed `/oauth/authorize` request when a client isn't allowlisted yet.
 
 ```bash
 bun src/index.ts
@@ -86,6 +98,30 @@ docker run \
   -p 3000:3000 \
   afpnews-mcp
 ```
+
+### Cloudflare Workers
+
+The HTTP transport is built as a plain [Hono](https://hono.dev) app with no server-side state
+(the OAuth authorization code and the bearer tokens are all self-contained), so it also runs as a
+Cloudflare Worker via `src/http/worker.ts` — no KV, Durable Objects, or other bindings needed.
+
+```bash
+bunx wrangler login
+bunx wrangler secret put APICORE_API_KEY
+bunx wrangler secret put JWT_SECRET
+```
+
+Edit `wrangler.toml`'s `[vars]` (`APICORE_BASE_URL`, `MCP_SERVER_URL` — the latter must match your
+actual `*.workers.dev` subdomain or custom domain), then:
+
+```bash
+bun run dev:worker      # local dev server via workerd (bunx wrangler dev)
+bun run deploy:worker   # bunx wrangler deploy
+```
+
+Rate limiting isn't implemented in-process (it would be per-isolate and largely pointless on the
+edge) — use [Cloudflare's own Rate Limiting](https://developers.cloudflare.com/waf/rate-limiting-rules/)
+in front of the Worker instead.
 
 ### As a library (without MCP server dependency)
 
@@ -138,7 +174,11 @@ The `afp_search_articles` tool supports presets that apply predefined filters:
 
 ### Full text
 
-By default, `afp_search_articles` returns excerpts (first 4 paragraphs). Set `fullText: true` to get the complete article body. Presets default to full text.
+By default, `afp_search_articles` returns excerpts (first 2 paragraphs). Set `fullText: true` to get the complete article body. Presets default to full text.
+
+### Pagination
+
+Use `offset` to paginate through results (e.g. `offset: 10` to skip the first 10). For large chronological scans, prefer narrowing `dateFrom`/`dateTo` ranges in `facets` over high offsets. Keep `size` small (10–20) for best performance.
 
 ## Prompts
 

@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
 import { parseDocument } from 'afpnews-api';
-import { formatFullArticle, toolError } from '../utils/format.js';
+import { formatFullArticle, textContent, toolError } from '../utils/format.js';
 import { formatErrorMessage, UNO_FORMAT_NOTE } from './shared.js';
 
 const inputSchema = z.object({
   uno: z.string().describe('The unique UNO identifier of the article'),
+  format: z
+    .enum(['markdown', 'json'])
+    .optional()
+    .describe('Output format: markdown (default, rendered article/shot list) or json (raw document, parse it yourself).'),
 });
 
 type GetArticleInput = z.infer<typeof inputSchema>;
@@ -38,13 +42,16 @@ Returns:
   - Full article body (all paragraphs, no truncation)
 
 Example:
-  { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e" }`,
+  { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e" }
+  { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", format: "json" }`,
   inputSchema,
-  handler: async (apicore: ApiCore, { uno }: GetArticleInput) => {
+  handler: async (apicore: Pick<ApiCore, 'get'>, { uno, format = 'markdown' }: GetArticleInput) => {
     try {
       const raw = await apicore.get(uno);
-      const doc = parseDocument(raw);
-      return { content: [formatFullArticle(doc)] };
+      if (format === 'json') {
+        return { content: [textContent(JSON.stringify(raw, null, 2))] };
+      }
+      return { content: [formatFullArticle(parseDocument(raw))] };
     } catch (error) {
       return toolError(formatErrorMessage(`fetching article "${uno}"`, error, 'Verify the UNO identifier is correct.'));
     }

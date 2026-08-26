@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
-import { textContent, toolError, formatDocumentOutput, parseDocuments } from '../utils/format.js';
+import { textContent, toolError, formatDocumentOutput } from '../utils/format.js';
 import { DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
 import {
   formatErrorMessage,
@@ -15,7 +15,7 @@ const inputSchema = z.object({
   lang: langEnum.describe("Language for results (e.g. 'en', 'fr')"),
   size: z.number().optional().describe('Number of similar articles to return (default 10)'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article excerpt), json (structured, no body), csv (tabular, no body).'),
-  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: afpshortid, uno, headline, published, lang, genre.'),
+  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
 });
 
 type FindSimilarInput = z.infer<typeof inputSchema>;
@@ -44,13 +44,12 @@ Examples:
   - Find similar articles in French: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "fr" }
   - Export similar as CSV: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "en", format: "csv", fields: ["uno", "headline"] }`,
   inputSchema,
-  handler: async (apicore: ApiCore, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
+  handler: async (apicore: Pick<ApiCore, 'mlt'>, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
     try {
-      const { documents: rawDocuments, count } = await apicore.mlt(uno, lang, size);
+      const { documents, count } = await apicore.mlt(uno, lang, size);
       if (count === 0) {
         return { content: [textContent('No similar articles found.')] };
       }
-      const documents = parseDocuments(rawDocuments);
 
       return formatDocumentOutput(documents, format, {
         fields: fields ?? [...DEFAULT_OUTPUT_FIELDS],

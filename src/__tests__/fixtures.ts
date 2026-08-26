@@ -31,9 +31,22 @@ export const FIXTURE_DOC_MINIMAL: AFPDocument = {
   lang: 'en',
   genre: 'factcheck',
   news: ['Only one paragraph.'],
-  'class': 'factcheck',
+};
+
+export const FIXTURE_VIDEO_DOC: AFPDocument = {
+  uno: 'AFP-TEST-VID-001',
+  headline: 'Test Video Headline',
+  published: '2026-02-14T10:30:00Z',
+  lang: 'fr',
+  genre: 'STOCKSHOTS',
+  class: 'video',
+  news: [
+    '1. 00:00-00:12 Vue aérienne de la ville',
+    '2. 00:12-00:30 SOUNDBITE 1 - Jean Dupont, témoin',
+    '"Tout a commencé très vite"',
+  ],
   urgency: 4,
-  created: '2026-02-14T11:00:00Z',
+  created: '2026-02-14T10:00:00Z',
   revision: 1,
   provider: 'AFP',
   status: 'Usable',

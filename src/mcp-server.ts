@@ -1,11 +1,15 @@
-import { createRequire } from 'node:module';
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { ApiCore } from "afpnews-api";
 import { registerTools } from "./tools/index.js";
 import { registerResources } from "./resources/index.js";
 import { registerPrompts } from "./prompts/index.js";
-
-const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
+// Static JSON import instead of createRequire(import.meta.url)('../package.json'):
+// createRequire is Node/Bun-specific and reads from a real filesystem at
+// runtime, which a Cloudflare Worker bundle doesn't have. Default import
+// only: esbuild (Wrangler's bundler) doesn't support named exports from a
+// JSON module, even though Bun does.
+import pkg from "../package.json" with { type: "json" };
+const { version } = pkg;
 
 export interface ServerContext {
   server: McpServer;

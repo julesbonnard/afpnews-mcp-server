@@ -1,0 +1,28 @@
+name = "afpnews-mcp-server"
+main = "src/http/worker.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Custom Domain (jub.cool must already be an active zone on this Cloudflare
+# account). Wrangler provisions the DNS record + SSL automatically on
+# `wrangler deploy` — no manual DNS setup needed.
+[[routes]]
+pattern = "afpnews-mcp.jub.cool"
+custom_domain = true
+
+# Non-secret configuration.
+[vars]
+APICORE_BASE_URL = "https://afp-apicore-prod.afp.com"
+MCP_SERVER_URL = "https://afpnews-mcp.jub.cool"
+
+# Every AI client with a fixed (non-localhost) OAuth callback URL goes here,
+# comma-separated — this is the single place to manage the whole allowlist.
+# Clients running a local callback server (Claude Code, MCP Inspector, most
+# IDEs) don't need an entry: any localhost/127.0.0.1 redirect_uri is always
+# allowed regardless of this list — see isAllowedRedirectUri() in
+# src/http/login-page.ts.
+MCP_ALLOWED_REDIRECT_URIS = "https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback,https://chatgpt.com/connector_platform_oauth_redirect,https://chatgpt.com/oauth/callback,https://chat.openai.com/oauth/callback,https://callback.mistral.ai/v1/integrations_auth/oauth2_callback"
+
+# Secrets (do NOT put real values here — use `wrangler secret put <NAME>`):
+#   APICORE_API_KEY
+#   JWT_SECRET

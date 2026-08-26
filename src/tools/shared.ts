@@ -28,7 +28,7 @@ const MEDIA_CLASS_VALUES = ['picture', 'video', 'graphic', 'videography'] as con
 export const mediaClassEnum = z.enum(MEDIA_CLASS_VALUES);
 export type MediaClass = z.infer<typeof mediaClassEnum>;
 
-const RENDITION_VALUES = ['thumbnail', 'preview', 'highdef'] as const;
+const RENDITION_VALUES = ['squared120', 'quicklook', 'thumbnail', 'mockup', 'preview', 'highdef'] as const;
 export const renditionEnum = z.enum(RENDITION_VALUES);
 export type RenditionKey = z.infer<typeof renditionEnum>;
 
@@ -52,6 +52,11 @@ export const READ_ONLY_ANNOTATIONS = {
   openWorldHint: true,
 } as const;
 
+export interface FacetResult {
+  name: string;
+  count: number;
+}
+
 export const GENRE_EXCLUSIONS = {
   exclude: [
     'afpgenre:Agenda',
@@ -67,7 +72,7 @@ export const GENRE_EXCLUSIONS = {
 
 interface PresetOverrides {
   class?: string[];
-  lang?: string[];
+  langs?: string[];
   slug?: string[];
   dateFrom?: string;
   size?: number;
@@ -77,7 +82,7 @@ interface PresetOverrides {
 export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
   'a-la-une': {
     class: ['text'],
-    lang: ['fr'],
+    langs: ['fr'],
     slug: ['afp', 'actualites'],
     dateFrom: 'now-1d',
     size: 1,
