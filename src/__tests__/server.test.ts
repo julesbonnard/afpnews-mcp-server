@@ -1,4 +1,5 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { parseDocument } from 'afpnews-api';
 import { McpServer } from '@modelcontextprotocol/server';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { registerTools } from '../tools/index.js';
@@ -239,7 +240,7 @@ describe('MCP integration', () => {
 
   describe('afp_get_article tool', () => {
     it('returns formatted full article with metadata rows and body', async () => {
-      apicore.get.mockResolvedValueOnce(FIXTURE_DOC);
+      apicore.get.mockResolvedValueOnce(parseDocument(FIXTURE_DOC));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-001' } });
       expect(result.content).toHaveLength(1);
       const text = getText(result);
@@ -255,11 +256,11 @@ describe('MCP integration', () => {
     });
 
     it('does not include missing optional fields', async () => {
-      apicore.get.mockResolvedValueOnce({
+      apicore.get.mockResolvedValueOnce(parseDocument({
         uno: 'X', headline: 'H', lang: 'fr', genre: 'news', published: '2026-01-01T00:00:00Z', news: ['body'],
         // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
         'class': 'text', urgency: 4, created: '2026-01-01T00:00:00Z', revision: 1, provider: 'AFP', status: 'Usable',
-      });
+      }));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'X' } });
       const text = getText(result);
       expect(text).not.toContain('**Advisory:**');
@@ -267,7 +268,7 @@ describe('MCP integration', () => {
     });
 
     it('renders a timecoded shot list body for video documents', async () => {
-      apicore.get.mockResolvedValueOnce(FIXTURE_VIDEO_DOC);
+      apicore.get.mockResolvedValueOnce(parseDocument(FIXTURE_VIDEO_DOC));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-VID-001' } });
       const text = getText(result);
       expect(text).toContain('## Shot list');

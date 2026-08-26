@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
-import { parseDocument } from 'afpnews-api';
 import { formatFullArticle, textContent, toolError } from '../utils/format.js';
 import { formatErrorMessage, UNO_FORMAT_NOTE } from './shared.js';
 
@@ -47,11 +46,12 @@ Example:
   inputSchema,
   handler: async (apicore: Pick<ApiCore, 'get'>, { uno, format = 'markdown' }: GetArticleInput) => {
     try {
-      const raw = await apicore.get(uno);
       if (format === 'json') {
+        const raw = await apicore.get(uno);
         return { content: [textContent(JSON.stringify(raw, null, 2))] };
       }
-      return { content: [formatFullArticle(parseDocument(raw))] };
+      const doc = await apicore.get(uno, { parse: true });
+      return { content: [formatFullArticle(doc)] };
     } catch (error) {
       return toolError(formatErrorMessage(`fetching article "${uno}"`, error, 'Verify the UNO identifier is correct.'));
     }

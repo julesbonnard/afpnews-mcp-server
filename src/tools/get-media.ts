@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import type { ApiCore, AfpDocument } from 'afpnews-api';
-import { parseDocument } from 'afpnews-api';
 import { textContent, toolError } from '../utils/format.js';
 import { extractRenditions } from '../utils/format-media.js';
 import type { MediaRendition, MediaRenditions } from '../utils/types.js';
@@ -73,11 +72,7 @@ Returns:
     { uno, embed = false, rendition: requestedRendition = 'preview' }: GetMediaInput,
   ) => {
     try {
-      const raw = await apicore.get(uno);
-      if (!raw) {
-        return toolError(`Media document not found: ${uno}`);
-      }
-      const doc = parseDocument(raw);
+      const doc = await apicore.get(uno, { parse: true });
 
       const renditions = extractRenditions(doc.medias[0]?.renditions);
       const metadataText = textContent(formatFullMediaText(doc, renditions));
