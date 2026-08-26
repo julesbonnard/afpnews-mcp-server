@@ -1,23 +1,23 @@
 import { describe, it, expect } from 'bun:test';
 import { parseDocument } from 'afpnews-api';
-import { formatDocument, formatFullArticle, MARKDOWN_API_FIELDS } from '../utils/format.js';
+import { formatDocument, formatFullArticle, pickDocFields, toApiFields, MARKDOWN_API_FIELDS } from '../utils/format.js';
 import { FIXTURE_DOC, FIXTURE_DOC_MINIMAL, FIXTURE_VIDEO_DOC } from './fixtures.js';
 
 describe('formatDocument', () => {
   it('returns { type: "text", text: string }', () => {
-    const result = formatDocument(FIXTURE_DOC);
+    const result = formatDocument(parseDocument(FIXTURE_DOC));
     expect(result).toHaveProperty('type', 'text');
     expect(typeof result.text).toBe('string');
     expect(Object.keys(result)).toEqual(['type', 'text']);
   });
 
   it('includes title as ## heading', () => {
-    const result = formatDocument(FIXTURE_DOC);
+    const result = formatDocument(parseDocument(FIXTURE_DOC));
     expect(result.text).toContain('## Test Article Headline');
   });
 
   it('includes metadata line with UNO, Lang, Genre (no Published, no Short ID)', () => {
-    const result = formatDocument(FIXTURE_DOC);
+    const result = formatDocument(parseDocument(FIXTURE_DOC));
     expect(result.text).toContain('UNO: AFP-TEST-001');
     expect(result.text).toContain('Lang: fr');
     expect(result.text).toContain('Genre: news');
@@ -26,27 +26,28 @@ describe('formatDocument', () => {
   });
 
   it('includes optional metadata (status, signal, advisory) when present', () => {
-    const result = formatDocument(FIXTURE_DOC);
+    const result = formatDocument(parseDocument(FIXTURE_DOC));
     expect(result.text).toContain('Status: Usable');
     expect(result.text).toContain('Signal: update');
     expect(result.text).toContain('Advisory: CORRECTION');
   });
 
   it('omits optional metadata when absent', () => {
-    const result = formatDocument(FIXTURE_DOC_MINIMAL);
-    expect(result.text).not.toContain('Status:');
+    // Status est désormais obligatoire sur AfpDocument (parseDocument() l'exige) — seuls
+    // signal/advisory restent réellement optionnels une fois le document parsé.
+    const result = formatDocument(parseDocument(FIXTURE_DOC_MINIMAL));
     expect(result.text).not.toContain('Signal:');
     expect(result.text).not.toContain('Advisory:');
   });
 
   it('truncates to 2 paragraphs when fullText=false', () => {
-    const result = formatDocument(FIXTURE_DOC, false);
+    const result = formatDocument(parseDocument(FIXTURE_DOC), false);
     expect(result.text).toContain('Second paragraph with more details.');
     expect(result.text).not.toContain('Third paragraph continues.');
   });
 
   it('includes all paragraphs when fullText=true', () => {
-    const result = formatDocument(FIXTURE_DOC, true);
+    const result = formatDocument(parseDocument(FIXTURE_DOC), true);
     expect(result.text).toContain('Fifth paragraph is extra content.');
   });
 });
@@ -60,9 +61,70 @@ describe('MARKDOWN_API_FIELDS', () => {
     expect(MARKDOWN_API_FIELDS).toContain('genre');
   });
 
-  it('does not contain published or afpshortid (derivable from UNO)', () => {
-    expect(MARKDOWN_API_FIELDS).not.toContain('published');
+  it('does not contain afpshortid (derivable from UNO)', () => {
     expect(MARKDOWN_API_FIELDS).not.toContain('afpshortid');
+  });
+
+  it('contains the mandatory socle required by parseDocument()', () => {
+    expect(MARKDOWN_API_FIELDS).toContain('published');
+    expect(MARKDOWN_API_FIELDS).toContain('class');
+    expect(MARKDOWN_API_FIELDS).toContain('urgency');
+    expect(MARKDOWN_API_FIELDS).toContain('created');
+    expect(MARKDOWN_API_FIELDS).toContain('revision');
+    expect(MARKDOWN_API_FIELDS).toContain('provider');
+  });
+});
+
+describe('toApiFields', () => {
+  it('always includes the mandatory socle required by parseDocument()', () => {
+    const fields = toApiFields(['uno', 'headline']);
+    expect(fields).toEqual(expect.arrayContaining(['class', 'urgency', 'created', 'published', 'revision', 'provider', 'status', 'lang']));
+  });
+
+  it('translates event to the raw afpentity field', () => {
+    expect(toApiFields(['event'])).toContain('afpentity');
+    expect(toApiFields(['event'])).not.toContain('event');
+  });
+
+  it('translates country to both country and countryname raw fields', () => {
+    const fields = toApiFields(['country']);
+    expect(fields).toContain('country');
+    expect(fields).toContain('countryname');
+  });
+
+  it('requests fields with no override under their own name', () => {
+    expect(toApiFields(['slug'])).toContain('slug');
+  });
+});
+
+describe('pickDocFields', () => {
+  const doc = parseDocument({
+    ...FIXTURE_DOC,
+    afpshortid: 'abc123',
+    country: 'fra',
+    countryname: 'France',
+    slug: ['sport', 'football'],
+    afpentity: { event: [{ qcode: 'afpentity:evt123', keyword: 'afpkeyword:Some Event' }] },
+  });
+
+  it('maps afpshortid to shortId', () => {
+    expect(pickDocFields(doc, ['afpshortid'])).toEqual({ afpshortid: 'ABC123' });
+  });
+
+  it('maps country to its display name, falling back to id', () => {
+    expect(pickDocFields(doc, ['country'])).toEqual({ country: 'France' });
+  });
+
+  it('maps slug to the slugs array', () => {
+    expect(pickDocFields(doc, ['slug'])).toEqual({ slug: ['sport', 'football'] });
+  });
+
+  it('maps event to a list of event names', () => {
+    expect(pickDocFields(doc, ['event'])).toEqual({ event: ['Some Event'] });
+  });
+
+  it('falls back to null for an absent optional field', () => {
+    expect(pickDocFields(doc, ['city'])).toEqual({ city: null });
   });
 });
 

@@ -6,8 +6,11 @@ import {
   toolError,
   buildPaginationLine,
   formatDocumentOutput,
+  parseDocuments,
+  toApiFields,
 } from '../utils/format.js';
 import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import type { DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
   GENRE_EXCLUSIONS,
@@ -118,16 +121,17 @@ Examples:
       }
       const effectiveFullText = preset ? true : fullText;
 
-      const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
+      const outputFields: DocField[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
         ? [...MARKDOWN_API_FIELDS]
-        : [...new Set(outputFields)];
+        : toApiFields(outputFields);
 
-      const { documents, count } = await apicore.search(request, apiFields);
+      const { documents: rawDocuments, count } = await apicore.search(request, apiFields);
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
+      const documents = parseDocuments(rawDocuments);
       const currentOffset = offset ?? 0;
 
       return formatDocumentOutput(documents, format, {

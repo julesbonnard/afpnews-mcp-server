@@ -31,6 +31,13 @@ export const FIXTURE_DOC_MINIMAL: AFPDocument = {
   lang: 'en',
   genre: 'factcheck',
   news: ['Only one paragraph.'],
+  // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
+  'class': 'factcheck',
+  urgency: 4,
+  created: '2026-02-14T11:00:00Z',
+  revision: 1,
+  provider: 'AFP',
+  status: 'Usable',
 };
 
 export const FIXTURE_VIDEO_DOC: AFPDocument = {

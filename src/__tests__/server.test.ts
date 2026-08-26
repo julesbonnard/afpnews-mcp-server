@@ -28,6 +28,13 @@ function makeLargeDocs(count: number) {
     lang: 'fr',
     genre: 'news',
     news: [`Paragraph ${i + 1} ${'B'.repeat(700)}`],
+    // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
+    'class': 'text',
+    urgency: 4,
+    created: '2026-02-14T09:00:00Z',
+    revision: 1,
+    provider: 'AFP',
+    status: 'Usable',
   }));
 }
 
