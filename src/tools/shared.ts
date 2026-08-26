@@ -52,11 +52,6 @@ export const READ_ONLY_ANNOTATIONS = {
   openWorldHint: true,
 } as const;
 
-export interface FacetResult {
-  name: string;
-  count: number;
-}
-
 export const GENRE_EXCLUSIONS = {
   exclude: [
     'afpgenre:Agenda',
