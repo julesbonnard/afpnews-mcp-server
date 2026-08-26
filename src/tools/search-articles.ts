@@ -6,7 +6,6 @@ import {
   toolError,
   buildPaginationLine,
   formatDocumentOutput,
-  parseDocuments,
   toApiFields,
 } from '../utils/format.js';
 import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
@@ -126,12 +125,11 @@ Examples:
         ? [...MARKDOWN_API_FIELDS]
         : toApiFields(outputFields);
 
-      const { documents: rawDocuments, count } = await apicore.search(request, apiFields);
+      const { documents, count } = await apicore.search(request, apiFields, { parse: true, lenient: true });
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
-      const documents = parseDocuments(rawDocuments);
       const currentOffset = offset ?? 0;
 
       return formatDocumentOutput(documents, format, {

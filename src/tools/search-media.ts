@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiCore, SearchQueryParams } from 'afpnews-api';
-import { textContent, toolError, buildPaginationLine, parseDocuments } from '../utils/format.js';
+import { textContent, toolError, buildPaginationLine } from '../utils/format.js';
 import {
   formatMediaOutput,
   formatMediaDocument,
@@ -45,12 +45,12 @@ async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent
 
 const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sortOrder', 'offset', 'facets']);
 
+// Le socle requis par parseDocument() (class, urgency, created, ...) est injecté
+// automatiquement par le SDK dès que { parse: true } est utilisé — pas besoin de le lister ici.
 const MEDIA_API_FIELDS = [
   'uno', 'title', 'caption', 'creditLine', 'creator',
   'country', 'city', 'published', 'urgency', 'class',
   'aspectRatios', 'advisory', 'bagItem',
-  // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
-  'created', 'lang', 'revision', 'provider', 'status',
 ] as const;
 
 const inputSchema = z.object({
@@ -148,13 +148,13 @@ Examples:
         ...(facets ?? {}),
       };
 
-      const { documents: rawDocs, count } = await apicore.search(request, [...MEDIA_API_FIELDS]);
+      const { documents, count } = await apicore.search(request, [...MEDIA_API_FIELDS], { parse: true, lenient: true });
 
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
-      const docs = parseDocuments(rawDocs).map(normalizeMediaDocument);
+      const docs = documents.map(normalizeMediaDocument);
       const currentOffset = offset ?? 0;
 
       if (embed) {

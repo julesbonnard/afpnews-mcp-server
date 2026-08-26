@@ -1,24 +1,7 @@
-import { parseDocument } from 'afpnews-api';
+import { MANDATORY_RAW_FIELDS } from 'afpnews-api';
 import type { AfpDocument } from 'afpnews-api';
 import type { DocField, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
-
-/** Parse un document brut, ou undefined s'il ne correspond pas au modèle canonique (jamais lève). */
-export function tryParseDocument(raw: unknown): AfpDocument | undefined {
-  try {
-    return parseDocument(raw);
-  } catch {
-    return undefined;
-  }
-}
-
-/** Parse une liste de documents bruts, en ignorant silencieusement ceux qui échouent. */
-export function parseDocuments(docs: unknown[]): AfpDocument[] {
-  return docs.flatMap(d => {
-    const parsed = tryParseDocument(d);
-    return parsed ? [parsed] : [];
-  });
-}
 
 /**
  * One accessor per public `DocField`, reading from the canonical `AfpDocument`. This is the
@@ -44,10 +27,6 @@ const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
   created: d => d.created.toISOString(),
 };
 
-// Champs bruts AFP à demander à l'API pour que parseDocument() réussisse, quel que soit le
-// format/les fields demandés (DocumentSourceSchema du SDK les exige tous).
-const MANDATORY_API_FIELDS = ['uno', 'class', 'urgency', 'created', 'published', 'revision', 'provider', 'status', 'lang'] as const;
-
 // Champs publics dont le nom de requête API brut diffère du DocField (ou nécessite plusieurs
 // champs bruts) — le reste se demande sous le même nom que le DocField.
 const RAW_FIELD_OVERRIDES: Partial<Record<DocField, readonly string[]>> = {
@@ -55,10 +34,14 @@ const RAW_FIELD_OVERRIDES: Partial<Record<DocField, readonly string[]>> = {
   country: ['country', 'countryname'],
 };
 
-/** Traduit une liste de DocField publics en noms de champs à demander à l'API AFP. */
+/**
+ * Traduit une liste de DocField publics en noms de champs à demander à l'API AFP. Le socle
+ * (MANDATORY_RAW_FIELDS) est aussi injecté automatiquement par le SDK dès que { parse: true }
+ * est utilisé — l'inclure ici en plus garde toApiFields() correct même pour un appel sans parse.
+ */
 export function toApiFields(fields: readonly DocField[]): string[] {
   const raw = fields.flatMap(f => RAW_FIELD_OVERRIDES[f] ?? [f]);
-  return [...new Set([...MANDATORY_API_FIELDS, ...raw])];
+  return [...new Set([...MANDATORY_RAW_FIELDS, ...raw])];
 }
 
 /** Render a video shot list (timecodes + descriptions + soundbite quotes) from `AfpDocument.shots`. */

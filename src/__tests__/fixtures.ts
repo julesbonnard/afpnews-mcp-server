@@ -1,4 +1,13 @@
+import { parseDocument } from 'afpnews-api';
 import type { AFPDocument } from '../utils/types.js';
+
+/**
+ * Parse une liste de fixtures brutes via le vrai parseDocument() du SDK — pour construire une
+ * valeur de mock d'apicore.search()/mlt() avec { parse: true }, qui renvoie déjà des AfpDocument.
+ */
+export function parseFixtures(docs: AFPDocument[]) {
+  return docs.map(d => parseDocument(d));
+}
 
 export const FIXTURE_DOC: AFPDocument = {
   uno: 'AFP-TEST-001',

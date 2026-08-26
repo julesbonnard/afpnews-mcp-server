@@ -5,13 +5,13 @@ import { registerTools } from '../tools/index.js';
 import { registerResources } from '../resources/index.js';
 import { registerPrompts } from '../prompts/index.js';
 import type { ServerContext } from '../mcp-server.js';
-import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs } from './fixtures.js';
+import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs, parseFixtures } from './fixtures.js';
 
 function createMockApicore() {
   return {
-    search: mock().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
+    search: mock().mockResolvedValue({ documents: parseFixtures(makeDocs(3)), count: 3 }),
     get: mock().mockResolvedValue(makeDocs(1)[0]),
-    mlt: mock().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
+    mlt: mock().mockResolvedValue({ documents: parseFixtures(makeDocs(2)), count: 2 }),
     list: mock().mockResolvedValue({ keywords: [{ name: 'economy', count: 42 }] }),
   };
 }
@@ -88,7 +88,7 @@ describe('MCP integration', () => {
     });
 
     it('returns excerpt by default (no fullText)', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
       // pagination line + 1 document
       const msg = result.content![1] as { type: string; text: string };
@@ -97,14 +97,14 @@ describe('MCP integration', () => {
     });
 
     it('returns full text when fullText=true', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', fullText: true } });
       const msg = result.content![1] as { type: string; text: string };
       expect(msg.text).toContain('Fifth paragraph is extra content.');
     });
 
     it('preset a-la-une applies filters and defaults to full text', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { preset: 'a-la-une' } });
       const msg = result.content![1] as { type: string; text: string };
       expect(msg.text).toContain('Fifth paragraph is extra content.');
@@ -155,7 +155,7 @@ describe('MCP integration', () => {
     });
 
     it('shows pagination info when there are more results', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: makeDocs(3), count: 10 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures(makeDocs(3)), count: 10 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
       const pagination = result.content![0] as { type: string; text: string };
       expect(pagination.text).toContain('Showing 3 of 10 results');
@@ -208,7 +208,7 @@ describe('MCP integration', () => {
 
     it('truncates json when exceeding character limit', async () => {
       const largeDocs = makeLargeDocs(400);
-      apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 400 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures(largeDocs), count: 400 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json' } });
       const parsed = JSON.parse(getText(result));
       expect(parsed.truncated).toBe(true);
@@ -219,7 +219,7 @@ describe('MCP integration', () => {
 
     it('truncates csv when exceeding character limit', async () => {
       const largeDocs = makeLargeDocs(800);
-      apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 800 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures(largeDocs), count: 800 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv' } });
       const lines = getText(result).split('\n');
       // header + fewer than 800 data rows
