@@ -6,11 +6,13 @@ import {
   toolError,
   buildPaginationLine,
   formatDocumentOutput,
+  toApiFields,
 } from '../utils/format.js';
 import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import type { DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
-  GENRE_EXCLUSIONS,
+  AGENDA_GENRE_EXCLUSIONS,
   formatErrorMessage,
   searchPresetEnum,
   outputFormatEnum,
@@ -101,7 +103,7 @@ Examples:
         class: ['text'],
         provider: ['afp'],
         langs: ['fr'],
-        genreid: GENRE_EXCLUSIONS,
+        genreid: AGENDA_GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };
 
@@ -118,12 +120,12 @@ Examples:
       }
       const effectiveFullText = preset ? true : fullText;
 
-      const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
+      const outputFields: DocField[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
         ? [...MARKDOWN_API_FIELDS]
-        : [...new Set(outputFields)];
+        : toApiFields(outputFields);
 
-      const { documents, count } = await apicore.search(request, apiFields);
+      const { documents, count } = await apicore.search(request, apiFields, { parse: true, lenient: true });
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ApiCore } from 'afpnews-api';
+import type { ApiCore, AfpDocument } from 'afpnews-api';
 import { textContent, toolError } from '../utils/format.js';
 import { extractRenditions } from '../utils/format-media.js';
 import type { MediaRendition, MediaRenditions } from '../utils/types.js';
@@ -17,21 +17,20 @@ const inputSchema = z.object({
 
 type GetMediaInput = z.infer<typeof inputSchema>;
 
-function formatFullMediaText(doc: Record<string, unknown>, renditions: MediaRenditions, note?: string): string {
+function formatFullMediaText(doc: AfpDocument, renditions: MediaRenditions, note?: string): string {
+  const country = doc.country.name ?? doc.country.id;
   const lines: string[] = [];
   if (doc.title) lines.push(`## ${doc.title}`);
   lines.push(`**UNO:** ${doc.uno}`);
-  if (doc.class)      lines.push(`**Class:** ${doc.class}`);
+  lines.push(`**Class:** ${doc.class}`);
   if (doc.creditLine) lines.push(`**Credit:** ${doc.creditLine}`);
   if (doc.creator)    lines.push(`**Creator:** ${doc.creator}`);
-  if (doc.published)  lines.push(`**Published:** ${doc.published}`);
-  if (doc.country || doc.city) lines.push(`**Location:** ${[doc.city, doc.country].filter(Boolean).join(', ')}`);
-  if (doc.urgency != null) lines.push(`**Urgency:** ${doc.urgency}`);
-  const aspectRatios = doc.aspectRatios as string[] | undefined;
-  if (aspectRatios?.length) lines.push(`**Aspect:** ${aspectRatios.join(', ')}`);
+  lines.push(`**Published:** ${doc.published.toISOString()}`);
+  if (country || doc.city) lines.push(`**Location:** ${[doc.city, country].filter(Boolean).join(', ')}`);
+  lines.push(`**Urgency:** ${doc.urgency}`);
+  if (doc.aspectRatios?.length) lines.push(`**Aspect:** ${doc.aspectRatios.join(', ')}`);
 
-  const caption = Array.isArray(doc.caption) ? doc.caption[0] : doc.caption;
-  if (caption) lines.push(`\n${caption}`);
+  if (doc.caption) lines.push(`\n${doc.caption}`);
   if (doc.advisory) lines.push(`\n> ${doc.advisory}`);
 
   lines.push('\n**Renditions:**');
@@ -71,13 +70,9 @@ Returns:
     { uno, embed = false, rendition: requestedRendition = 'preview' }: GetMediaInput,
   ) => {
     try {
-      const raw = await apicore.get(uno);
-      if (!raw) {
-        return toolError(`Media document not found: ${uno}`);
-      }
-      const doc = raw as Record<string, unknown>;
+      const doc = await apicore.get(uno, { parse: true });
 
-      const renditions = extractRenditions(doc.bagItem ?? []);
+      const renditions = extractRenditions(doc.medias[0]?.renditions);
       const metadataText = textContent(formatFullMediaText(doc, renditions));
 
       if (!embed) {

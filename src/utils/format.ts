@@ -1,22 +1,51 @@
-import { parseShotList } from 'afpnews-api';
-import type { AFPDocument, TextContent } from './types.js';
+import { MANDATORY_RAW_FIELDS } from 'afpnews-api';
+import type { AfpDocument } from 'afpnews-api';
+import type { DocField, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
 
-const VIDEO_CLASSES = new Set(['video', 'videography']);
+/**
+ * One accessor per public `DocField`, reading from the canonical `AfpDocument`. This is the
+ * single bridge between the SDK model and the tool's public field vocabulary (json/csv/markdown) —
+ * `Record<DocField, ...>` forces a compile error if a new DocField is added without an accessor.
+ */
+const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
+  afpshortid: d => d.shortId,
+  uno: d => d.uno,
+  headline: d => d.headline,
+  published: d => d.published.toISOString(),
+  lang: d => d.lang,
+  genre: d => d.genre,
+  status: d => d.status,
+  signal: d => d.signal,
+  advisory: d => d.advisory,
+  country: d => d.country.name ?? d.country.id,
+  city: d => d.city,
+  slug: d => d.slugs,
+  event: d => d.events.map(e => e.name),
+  'class': d => d.class,
+  revision: d => d.revision,
+  created: d => d.created.toISOString(),
+};
+
+// Champs publics dont le nom de requête API brut diffère du DocField (ou nécessite plusieurs
+// champs bruts) — le reste se demande sous le même nom que le DocField.
+const RAW_FIELD_OVERRIDES: Partial<Record<DocField, readonly string[]>> = {
+  event: ['afpentity'],
+  country: ['country', 'countryname'],
+};
 
 /**
- * Render a video shot list (timecodes + descriptions + soundbite quotes) from
- * the raw `news` lines. Returns `null` when the document is not a video or when
- * no shot could be parsed, so callers can fall back to the plain text body.
+ * Traduit une liste de DocField publics en noms de champs à demander à l'API AFP. Le socle
+ * (MANDATORY_RAW_FIELDS) est aussi injecté automatiquement par le SDK dès que { parse: true }
+ * est utilisé — l'inclure ici en plus garde toApiFields() correct même pour un appel sans parse.
  */
-export function formatShotList(doc: unknown): string | null {
-  const d = doc as AFPDocument;
-  if (!VIDEO_CLASSES.has(String(d['class']))) return null;
+export function toApiFields(fields: readonly DocField[]): string[] {
+  const raw = fields.flatMap(f => RAW_FIELD_OVERRIDES[f] ?? [f]);
+  return [...new Set([...MANDATORY_RAW_FIELDS, ...raw])];
+}
 
-  const news = Array.isArray(d.news) ? d.news : [];
-  const shots = parseShotList(news.join('\n'));
-  if (shots.length === 0) return null;
-
+/** Render a video shot list (timecodes + descriptions + soundbite quotes) from `AfpDocument.shots`. */
+function renderShots(shots: NonNullable<AfpDocument['shots']>): string {
   const lines = shots.map((shot) => {
     const head = `${shot.numero}. [${shot.start}-${shot.end}] ${shot.description}`.trimEnd();
     const quotes = shot.citations.map((c) => `   "${c.text}"`);
@@ -34,7 +63,7 @@ export function truncationHint(remaining?: number): string {
 }
 
 /** Fields requested from the API when rendering markdown output. */
-export const MARKDOWN_API_FIELDS = ['uno', 'status', 'signal', 'advisory', 'headline', 'news', 'lang', 'genre', 'event'] as const;
+export const MARKDOWN_API_FIELDS = [...toApiFields(['genre', 'status', 'signal', 'advisory', 'event']), 'headline', 'news'];
 
 export function escapeCsvValue(value: unknown): string {
   const str = Array.isArray(value) ? value.join('|') : String(value ?? '');
@@ -42,9 +71,8 @@ export function escapeCsvValue(value: unknown): string {
   return str;
 }
 
-export function pickDocFields(doc: unknown, fields: string[]): Record<string, unknown> {
-  const d = doc as Record<string, unknown>;
-  return Object.fromEntries(fields.map(f => [f, d[f] ?? null]));
+export function pickDocFields(doc: AfpDocument, fields: DocField[]): Record<string, unknown> {
+  return Object.fromEntries(fields.map(f => [f, FIELD_ACCESSORS[f](doc) ?? null]));
 }
 
 /**
@@ -75,8 +103,8 @@ export function truncateToLimit<T>(
 }
 
 function formatDocumentsAsJsonInner(
-  docs: unknown[],
-  fields: string[],
+  docs: AfpDocument[],
+  fields: DocField[],
   meta: Record<string, unknown> = {},
 ): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
   const documents = docs.map(doc => pickDocFields(doc, fields));
@@ -88,11 +116,11 @@ function formatDocumentsAsJsonInner(
 }
 
 function formatDocumentsAsCsvInner(
-  docs: unknown[],
-  fields: string[],
+  docs: AfpDocument[],
+  fields: DocField[],
 ): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
-  const rows = (docs as Record<string, unknown>[]).map(doc =>
-    fields.map(f => escapeCsvValue(doc[f])).join(','),
+  const rows = docs.map(doc =>
+    fields.map(f => escapeCsvValue(FIELD_ACCESSORS[f](doc))).join(','),
   );
   const header = fields.join(',');
   const { text, count, truncated, remaining } = truncateToLimit(
@@ -149,28 +177,24 @@ function truncateContentItemsWithPrefix(
   return { content: result, shown, truncated: false, remaining: 0 };
 }
 
-export function formatDocument(doc: unknown, fullText = false): TextContent {
-  const d = doc as AFPDocument;
+export function formatDocument(doc: AfpDocument, fullText = false): TextContent {
+  const meta: string[] = [`UNO: ${doc.uno}`];
+  if (doc.lang) meta.push(`Lang: ${doc.lang}`);
+  if (doc.genre) meta.push(`Genre: ${doc.genre}`);
+  if (doc.status) meta.push(`Status: ${doc.status}`);
+  if (doc.signal) meta.push(`Signal: ${doc.signal}`);
+  if (doc.advisory) meta.push(`Advisory: ${doc.advisory}`);
+  if (doc.events.length) meta.push(`Event: ${doc.events.map(e => e.name).join(', ')}`);
 
-  const meta: string[] = [`UNO: ${d.uno}`];
-  if (d.lang) meta.push(`Lang: ${d.lang}`);
-  if (d.genre) meta.push(`Genre: ${d.genre}`);
-  if (d.status) meta.push(`Status: ${d.status}`);
-  if (d.signal) meta.push(`Signal: ${d.signal}`);
-  if (d.advisory) meta.push(`Advisory: ${d.advisory}`);
-  if (d.event?.length) meta.push(`Event: ${d.event.join(', ')}`);
-
-  const paragraphs = Array.isArray(d.news) ? d.news : [];
+  const paragraphs = doc.paragraphs.map(p => p.text);
   const body = fullText
     ? paragraphs.join('\n\n')
     : paragraphs.slice(0, EXCERPT_PARAGRAPH_COUNT).join('\n\n');
 
-  return textContent(`## ${d.headline}\n*${meta.join(' | ')}*\n\n${body}`);
+  return textContent(`## ${doc.headline}\n*${meta.join(' | ')}*\n\n${body}`);
 }
 
-export function formatFullArticle(doc: unknown): TextContent {
-  const d = doc as AFPDocument;
-
+export function formatFullArticle(doc: AfpDocument): TextContent {
   const row = (...pairs: Array<[string, unknown]>) =>
     pairs
       .filter(([, v]) => v != null && v !== '')
@@ -178,19 +202,24 @@ export function formatFullArticle(doc: unknown): TextContent {
       .join(' · ');
 
   const lines: string[] = [];
-  lines.push(row(['UNO', d.uno]));
-  lines.push(row(['Lang', d.lang], ['Genre', d.genre], ['Class', d['class']], ['Revision', d.revision]));
+  lines.push(row(['UNO', doc.uno]));
+  lines.push(row(['Lang', doc.lang], ['Genre', doc.genre], ['Class', doc.class], ['Revision', doc.revision]));
 
-  const extras = row(['Country', d.country], ['City', d.city], ['Slug', d.slug], ['Event', d.event]);
+  const extras = row(
+    ['Country', doc.country.name ?? doc.country.id],
+    ['City', doc.city],
+    ['Slug', doc.slugs],
+    ['Event', doc.events.map(e => e.name)],
+  );
   if (extras) lines.push(extras);
 
-  const flags = row(['Status', d.status], ['Signal', d.signal], ['Advisory', d.advisory]);
+  const flags = row(['Status', doc.status], ['Signal', doc.signal], ['Advisory', doc.advisory]);
   if (flags) lines.push(flags);
 
   const meta = lines.join('\n');
-  const body = formatShotList(d) ?? (Array.isArray(d.news) ? d.news : []).join('\n\n');
+  const body = doc.shots?.length ? renderShots(doc.shots) : doc.paragraphs.map(p => p.text).join('\n\n');
 
-  return textContent(`## ${d.headline}\n\n${meta}\n\n---\n\n${body}`);
+  return textContent(`## ${doc.headline}\n\n${meta}\n\n---\n\n${body}`);
 }
 
 /**
@@ -198,10 +227,10 @@ export function formatFullArticle(doc: unknown): TextContent {
  * Handles json/csv/markdown branching in one place.
  */
 export function formatDocumentOutput(
-  documents: unknown[],
+  documents: AfpDocument[],
   format: string,
   opts: {
-    fields: string[];
+    fields: DocField[];
     fullText?: boolean;
     jsonMeta?: Record<string, unknown>;
     markdownPrefix?: TextContent[] | ((shown: number) => TextContent[]);

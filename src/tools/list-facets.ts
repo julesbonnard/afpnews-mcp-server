@@ -2,7 +2,6 @@ import { z } from 'zod';
 import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import { escapeCsvValue, textContent, toolError, truncateToLimit, truncationHint } from '../utils/format.js';
 import {
-  type FacetResult,
   facetParamValueSchema,
   formatErrorMessage,
   langEnum,
@@ -78,7 +77,9 @@ Examples:
       };
 
       const { keywords } = await apicore.list(resolvedFacet, params, 1);
-      const results: FacetResult[] = keywords.map(k => ({ name: k.name ?? '', count: k.count }));
+      // apicore.list() renvoie déjà des AfpFacetValue[] typés côté SDK (zod-validé) —
+      // seule la normalisation name ?? '' reste nécessaire pour un rendu csv/json propre.
+      const results = keywords.map(k => ({ name: k.name ?? '', count: k.count }));
 
       if (results.length === 0) {
         return { content: [textContent(`No facet values found for "${resolvedFacet}".`)] };

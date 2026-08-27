@@ -46,10 +46,11 @@ Example:
   inputSchema,
   handler: async (apicore: Pick<ApiCore, 'get'>, { uno, format = 'markdown' }: GetArticleInput) => {
     try {
-      const doc = await apicore.get(uno);
       if (format === 'json') {
-        return { content: [textContent(JSON.stringify(doc, null, 2))] };
+        const raw = await apicore.get(uno);
+        return { content: [textContent(JSON.stringify(raw, null, 2))] };
       }
+      const doc = await apicore.get(uno, { parse: true });
       return { content: [formatFullArticle(doc)] };
     } catch (error) {
       return toolError(formatErrorMessage(`fetching article "${uno}"`, error, 'Verify the UNO identifier is correct.'));

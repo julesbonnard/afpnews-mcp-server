@@ -1,22 +1,36 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { parseDocument } from 'afpnews-api';
 import { afpSearchMediaTool, EMBED_MAX_DOCS } from '../tools/search-media.js';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
+// Champs requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
+const MANDATORY_FIELDS = {
+  urgency: 4,
+  lang: 'en',
+  created: '2026-01-01T00:00:00Z',
+  published: '2026-01-01T00:00:00Z',
+  revision: 1,
+  provider: 'AFP',
+  status: 'Usable',
+};
+
 function makeMediaDoc(uno: string, extraMedias: Record<string, unknown>[] = []) {
-  return {
+  return parseDocument({
+    ...MANDATORY_FIELDS,
     uno,
     title: `Photo ${uno}`,
-    caption: ['A caption'],
-    class: 'picture',
+    'class': 'picture',
     bagItem: [{
+      uno,
+      caption: 'A caption',
       medias: [
         { role: 'Quicklook', href: `https://example.com/${uno}-quick.jpg`, width: 245, height: 164, type: 'Photo' },
         { role: 'Thumbnail', href: `https://example.com/${uno}-thumb.jpg`, width: 320, height: 213, type: 'Photo' },
         ...extraMedias,
       ],
     }],
-  };
+  });
 }
 
 describe('afpSearchMediaTool.handler — embed', () => {
@@ -87,17 +101,19 @@ describe('afpSearchMediaTool.handler — embed', () => {
       headers: new Headers({ 'content-type': 'image/jpeg' }),
     } as Response);
 
-    const videoDoc = {
+    const videoDoc = parseDocument({
+      ...MANDATORY_FIELDS,
       uno: 'VIDEO-1',
       title: 'A video',
-      class: 'video',
+      'class': 'video',
       bagItem: [{
+        uno: 'VIDEO-1',
         medias: [
           { role: 'Quicklook', href: 'https://example.com/video-quick.jpg', width: 245, height: 164, type: 'Photo' },
           { role: 'Thumbnail', href: 'https://example.com/video-thumb.jpg', width: 320, height: 213, type: 'Photo' },
         ],
       }],
-    };
+    });
     const apicore = { search: mock().mockResolvedValue({ documents: [videoDoc], count: 1 }) };
 
     await afpSearchMediaTool.handler(apicore, { query: 'test', class: 'video', embed: true });
@@ -107,14 +123,16 @@ describe('afpSearchMediaTool.handler — embed', () => {
   });
 
   it('skips embedding SVG graphics but still returns their metadata text', async () => {
-    const svgDoc = {
+    const svgDoc = parseDocument({
+      ...MANDATORY_FIELDS,
       uno: 'GRAPHIC-1',
       title: 'A graphic',
-      class: 'graphic',
+      'class': 'graphic',
       bagItem: [{
+        uno: 'GRAPHIC-1',
         medias: [{ role: 'Preview', href: 'https://example.com/graphic.svg', width: 1200, height: 800, type: 'Graphic' }],
       }],
-    };
+    });
     const apicore = { search: mock().mockResolvedValue({ documents: [svgDoc], count: 1 }) };
 
     const result = await afpSearchMediaTool.handler(apicore, { query: 'test', class: 'graphic', embed: true });

@@ -1,26 +1,23 @@
 import { describe, it, expect } from 'bun:test';
 import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, formatMediaDocumentsAsCsv, MEDIA_RENDITION_ROLE_MAP } from '../utils/format-media.js';
 
-// Fixture bagItem reprenant la structure réelle AFP
-const FIXTURE_BAG_ITEM = [{
-  medias: [
-    { role: 'Thumbnail',   sizeInBytes: 33590,   width: 320,  height: 213,  href: 'https://example.com/thumb.jpg',   type: 'Photo' },
-    { role: 'Preview',     sizeInBytes: 340621,  width: 1200, height: 800,  href: 'https://example.com/prev.jpg',    type: 'Photo' },
-    { role: 'Preview_B',   sizeInBytes: 596996,  width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg',  type: 'Photo' },
-    { role: 'HighDef',     sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg',      type: 'Photo' },
-    { role: 'Quicklook',   sizeInBytes: 14055,   width: 245,  height: 164,  href: 'https://example.com/quick.jpg',   type: 'Photo' },
-    { role: 'Mockup',      sizeInBytes: 19989,   width: 512,  height: 342,  href: 'https://example.com/mockup.jpg',  type: 'Photo' },
-    { role: 'Squared120',  sizeInBytes: 3696,    width: 120,  height: 120,  href: 'https://example.com/sq120.jpg',   type: 'Photo' },
-  ],
-}];
+// Fixture reprenant la structure réelle AFP — extractRenditions prend directement le tableau de
+// renditions d'un AfpMedia (déjà bucketisé par media, voir doc.medias[0].renditions).
+const FIXTURE_RENDITIONS = [
+  { role: 'Thumbnail',   sizeInBytes: 33590,   width: 320,  height: 213,  href: 'https://example.com/thumb.jpg',   type: 'Photo' },
+  { role: 'Preview',     sizeInBytes: 340621,  width: 1200, height: 800,  href: 'https://example.com/prev.jpg',    type: 'Photo' },
+  { role: 'Preview_B',   sizeInBytes: 596996,  width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg',  type: 'Photo' },
+  { role: 'HighDef',     sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg',      type: 'Photo' },
+  { role: 'Quicklook',   sizeInBytes: 14055,   width: 245,  height: 164,  href: 'https://example.com/quick.jpg',   type: 'Photo' },
+  { role: 'Mockup',      sizeInBytes: 19989,   width: 512,  height: 342,  href: 'https://example.com/mockup.jpg',  type: 'Photo' },
+  { role: 'Squared120',  sizeInBytes: 3696,    width: 120,  height: 120,  href: 'https://example.com/sq120.jpg',   type: 'Photo' },
+] as const;
 
-const FIXTURE_BAG_NO_PREVIEW = [{
-  medias: [
-    { role: 'Thumbnail', sizeInBytes: 33590, width: 320, height: 213, href: 'https://example.com/thumb.jpg', type: 'Photo' },
-    { role: 'Preview_B', sizeInBytes: 596996, width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg', type: 'Photo' },
-    { role: 'HighDef',   sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg', type: 'Photo' },
-  ],
-}];
+const FIXTURE_RENDITIONS_NO_PREVIEW = [
+  { role: 'Thumbnail', sizeInBytes: 33590, width: 320, height: 213, href: 'https://example.com/thumb.jpg', type: 'Photo' },
+  { role: 'Preview_B', sizeInBytes: 596996, width: 1800, height: 1200, href: 'https://example.com/prev_b.jpg', type: 'Photo' },
+  { role: 'HighDef',   sizeInBytes: 5126566, width: 3429, height: 2286, href: 'https://example.com/hd.jpg', type: 'Photo' },
+] as const;
 
 describe('MEDIA_RENDITION_ROLE_MAP', () => {
   it('maps Quicklook → quicklook', () => expect(MEDIA_RENDITION_ROLE_MAP['Quicklook']).toBe('quicklook'));
@@ -34,16 +31,16 @@ describe('MEDIA_RENDITION_ROLE_MAP', () => {
 });
 
 describe('extractRenditions', () => {
-  it('returns {} for empty bagItem', () => {
+  it('returns {} for an empty renditions array', () => {
     expect(extractRenditions([])).toEqual({});
   });
 
-  it('returns {} for missing medias', () => {
-    expect(extractRenditions([{}])).toEqual({});
+  it('returns {} when renditions is undefined', () => {
+    expect(extractRenditions(undefined)).toEqual({});
   });
 
-  it('extracts squared120, quicklook, thumbnail, mockup, preview, highdef from standard bagItem', () => {
-    const r = extractRenditions(FIXTURE_BAG_ITEM);
+  it('extracts squared120, quicklook, thumbnail, mockup, preview, highdef from standard renditions', () => {
+    const r = extractRenditions(FIXTURE_RENDITIONS);
     expect(r.squared120?.href).toBe('https://example.com/sq120.jpg');
     expect(r.squared120?.width).toBe(120);
     expect(r.quicklook?.href).toBe('https://example.com/quick.jpg');
@@ -59,31 +56,23 @@ describe('extractRenditions', () => {
   });
 
   it('Preview takes priority over Preview_B for the preview slot', () => {
-    const r = extractRenditions(FIXTURE_BAG_ITEM);
+    const r = extractRenditions(FIXTURE_RENDITIONS);
     expect(r.preview?.width).toBe(1200); // Preview, not Preview_B (1800)
   });
 
   it('falls back to Preview_B when Preview is absent', () => {
-    const r = extractRenditions(FIXTURE_BAG_NO_PREVIEW);
+    const r = extractRenditions(FIXTURE_RENDITIONS_NO_PREVIEW);
     expect(r.preview?.href).toBe('https://example.com/prev_b.jpg');
     expect(r.preview?.width).toBe(1800);
   });
 
   it('ignores genuinely unknown roles', () => {
-    const bagWithUnknownRole = [{
-      medias: [
-        ...FIXTURE_BAG_ITEM[0].medias,
-        { role: 'SomeFutureRole', href: 'https://example.com/future.jpg', width: 999, height: 999, type: 'Photo' },
-      ],
-    }];
-    const r = extractRenditions(bagWithUnknownRole);
+    const withUnknownRole = [
+      ...FIXTURE_RENDITIONS,
+      { role: 'SomeFutureRole', href: 'https://example.com/future.jpg', width: 999, height: 999, type: 'Photo' },
+    ] as const;
+    const r = extractRenditions(withUnknownRole);
     expect(Object.keys(r)).not.toContain('somefuturerole');
-  });
-
-  it('uses first bagItem only (index 0)', () => {
-    const twoBags = [FIXTURE_BAG_ITEM[0], { medias: [{ role: 'Thumbnail', href: 'https://other.com/thumb.jpg', width: 100, height: 100 }] }];
-    const r = extractRenditions(twoBags);
-    expect(r.thumbnail?.href).toBe('https://example.com/thumb.jpg');
   });
 });
 

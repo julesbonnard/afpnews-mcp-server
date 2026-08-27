@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
-import { textContent, toolError, formatDocumentOutput } from '../utils/format.js';
+import { MARKDOWN_API_FIELDS, textContent, toolError, formatDocumentOutput, toApiFields } from '../utils/format.js';
 import { DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import type { DocField } from '../utils/types.js';
 import {
   formatErrorMessage,
   langEnum,
@@ -46,13 +47,18 @@ Examples:
   inputSchema,
   handler: async (apicore: Pick<ApiCore, 'mlt'>, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
     try {
-      const { documents, count } = await apicore.mlt(uno, lang, size);
+      const outputFields: DocField[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
+      const apiFields = format === 'markdown'
+        ? [...MARKDOWN_API_FIELDS]
+        : toApiFields(outputFields);
+
+      const { documents, count } = await apicore.mlt(uno, lang, size, apiFields, { parse: true, lenient: true });
       if (count === 0) {
         return { content: [textContent('No similar articles found.')] };
       }
 
       return formatDocumentOutput(documents, format, {
-        fields: fields ?? [...DEFAULT_OUTPUT_FIELDS],
+        fields: outputFields,
         jsonMeta: { total: count },
         markdownPrefix: [textContent(`*Found ${count} similar articles.*`)],
       });

@@ -1,13 +1,14 @@
 import { describe, it, expect, mock } from 'bun:test';
+import { parseDocument } from 'afpnews-api';
 import { afpSearchArticlesTool } from '../tools/search-articles.js';
 import { afpSearchMediaTool } from '../tools/search-media.js';
 import { afpListFacetsTool } from '../tools/list-facets.js';
-import { FIXTURE_DOC } from './fixtures.js';
+import { FIXTURE_DOC, parseFixtures } from './fixtures.js';
 
 describe('tool defaults', () => {
   it('afp_search_articles defaults to AFP French text documents', async () => {
     const apicore = {
-      search: mock().mockResolvedValue({ documents: [FIXTURE_DOC], count: 1 }),
+      search: mock().mockResolvedValue({ documents: parseFixtures([FIXTURE_DOC]), count: 1 }),
     };
 
     await afpSearchArticlesTool.handler(apicore, { query: 'test' });
@@ -21,13 +22,15 @@ describe('tool defaults', () => {
   it('afp_search_media defaults to AFP provider only', async () => {
     const apicore = {
       search: mock().mockResolvedValue({
-        documents: [{
+        documents: [parseDocument({
           uno: 'MEDIA-001',
           title: 'Photo',
-          caption: ['Caption'],
-          class: 'picture',
-          bagItem: [{ medias: [{ role: 'Thumbnail', href: 'https://example.com/thumb.jpg', width: 320, height: 213, type: 'Photo' }] }],
-        }],
+          'class': 'picture',
+          bagItem: [{ uno: 'MEDIA-001', caption: 'Caption', medias: [{ role: 'Thumbnail', href: 'https://example.com/thumb.jpg', width: 320, height: 213, type: 'Photo' }] }],
+          // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
+          urgency: 4, lang: 'en', created: '2026-01-01T00:00:00Z', published: '2026-01-01T00:00:00Z',
+          revision: 1, provider: 'AFP', status: 'Usable',
+        })],
         count: 1,
       }),
     };
