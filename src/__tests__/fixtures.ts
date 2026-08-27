@@ -31,7 +31,17 @@ export function parseFixtures(docs: AFPDocument[]) {
   return docs.map(d => parseDocument(d));
 }
 
+// Socle requis par parseDocument() (AfpDocument) — identique sur les 4 fixtures ci-dessous,
+// quelles que soient les valeurs des autres champs (voir MANDATORY_RAW_FIELDS côté SDK).
+const BASE = {
+  urgency: 4,
+  revision: 1,
+  provider: 'AFP',
+  status: 'Usable',
+} as const;
+
 export const FIXTURE_DOC: AFPDocument = {
+  ...BASE,
   uno: 'AFP-TEST-001',
   headline: 'Test Article Headline',
   published: '2026-02-14T10:30:00Z',
@@ -44,54 +54,43 @@ export const FIXTURE_DOC: AFPDocument = {
     'Fourth paragraph wraps up.',
     'Fifth paragraph is extra content.',
   ],
-  status: 'Usable',
   signal: 'update',
   advisory: 'CORRECTION',
-  // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
   'class': 'text',
-  urgency: 4,
   created: '2026-02-14T10:00:00Z',
-  revision: 1,
-  provider: 'AFP',
 };
 
 export const FIXTURE_DOC_MINIMAL: AFPDocument = {
+  ...BASE,
   uno: 'AFP-TEST-002',
   headline: 'Minimal Article',
   published: '2026-02-14T12:00:00Z',
   lang: 'en',
   genre: 'factcheck',
   news: ['Only one paragraph.'],
-  // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
   'class': 'factcheck',
-  urgency: 4,
   created: '2026-02-14T11:00:00Z',
-  revision: 1,
-  provider: 'AFP',
-  status: 'Usable',
 };
 
 export const FIXTURE_VIDEO_DOC: AFPDocument = {
+  ...BASE,
   uno: 'AFP-TEST-VID-001',
   headline: 'Test Video Headline',
   published: '2026-02-14T10:30:00Z',
   lang: 'fr',
   genre: 'STOCKSHOTS',
-  class: 'video',
+  'class': 'video',
   news: [
     '1. 00:00-00:12 Vue aérienne de la ville',
     '2. 00:12-00:30 SOUNDBITE 1 - Jean Dupont, témoin',
     '"Tout a commencé très vite"',
   ],
-  urgency: 4,
   created: '2026-02-14T10:00:00Z',
-  revision: 1,
-  provider: 'AFP',
-  status: 'Usable',
 };
 
 export function makeDocs(count: number): AFPDocument[] {
   return Array.from({ length: count }, (_, i) => ({
+    ...BASE,
     uno: `AFP-TEST-${String(i + 1).padStart(3, '0')}`,
     headline: `Article ${i + 1}`,
     published: '2026-02-14T10:00:00Z',
@@ -99,10 +98,6 @@ export function makeDocs(count: number): AFPDocument[] {
     genre: 'news',
     news: ['Paragraph 1', 'Paragraph 2'],
     'class': 'text',
-    urgency: 4,
     created: '2026-02-14T09:00:00Z',
-    revision: 1,
-    provider: 'AFP',
-    status: 'Usable',
   }));
 }
