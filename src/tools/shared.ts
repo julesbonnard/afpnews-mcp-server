@@ -1,5 +1,8 @@
 import { z } from 'zod';
+import { AGENDA_GENRE_EXCLUSIONS } from 'afpnews-api';
 import { ALL_DOC_FIELDS } from '../utils/types.js';
+
+export { AGENDA_GENRE_EXCLUSIONS };
 
 // UNO format: newsml.afp.com.20260222T090659Z.doc-98hu39e
 //   - timestamp: 20260222T090659Z → 2026-02-22 09:06:59 UTC
@@ -52,19 +55,6 @@ export const READ_ONLY_ANNOTATIONS = {
   openWorldHint: true,
 } as const;
 
-export const GENRE_EXCLUSIONS = {
-  exclude: [
-    'afpgenre:Agenda',
-    'afpattribute:Agenda',
-    'afpattribute:Program',
-    'afpattribute:TextProgram',
-    'afpattribute:AdvisoryUpdate',
-    'afpattribute:Advice',
-    'afpattribute:SpecialAnnouncement',
-    'afpattribute:PictureProgram',
-  ],
-};
-
 interface PresetOverrides {
   class?: string[];
   langs?: string[];
@@ -81,7 +71,7 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
     slug: ['afp', 'actualites'],
     dateFrom: 'now-1d',
     size: 1,
-    genreid: GENRE_EXCLUSIONS,
+    genreid: AGENDA_GENRE_EXCLUSIONS,
   },
   'agenda': {
     class: ['text'],

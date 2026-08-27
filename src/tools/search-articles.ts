@@ -12,7 +12,7 @@ import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
 import type { DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
-  GENRE_EXCLUSIONS,
+  AGENDA_GENRE_EXCLUSIONS,
   formatErrorMessage,
   searchPresetEnum,
   outputFormatEnum,
@@ -103,7 +103,7 @@ Examples:
         class: ['text'],
         provider: ['afp'],
         langs: ['fr'],
-        genreid: GENRE_EXCLUSIONS,
+        genreid: AGENDA_GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };
 
