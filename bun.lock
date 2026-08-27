@@ -14,12 +14,12 @@
         "@modelcontextprotocol/client": "^2.0.0",
         "@types/bun": "^1.3.14",
         "@types/node": "^26.1.2",
-        "afpnews-api": "^2.6.0",
+        "afpnews-api": "next",
         "wrangler": "^4.125.0",
         "zod": "^4.4.3",
       },
       "peerDependencies": {
-        "afpnews-api": "^2.6.0",
+        "afpnews-api": "next",
         "zod": "^4.3.6",
       },
     },
@@ -187,7 +187,7 @@
 
     "@types/statuses": ["@types/statuses@2.0.6", "", {}, "sha512-xMAgYwceFhRA2zY+XbEA7mxYbA093wdiW8Vu6gZPGWy9cmOyU9XesH1tNcEWsKFd5Vzrqx5T3D38PWx1FIIXkA=="],
 
-    "afpnews-api": ["afpnews-api@2.6.0", "", { "dependencies": { "@types/btoa-lite": "^1.0.2", "@types/events": "^3.0.3", "@types/moo": "^0.5.10", "@types/nearley": "^2.11.5", "@types/node": "^26.1.1", "@types/statuses": "^2.0.6", "btoa-lite": "^1.0.0", "events": "^3.3.0", "moo": "^0.5.3", "nearley": "^2.20.1", "statuses": "^2.0.2", "zod": "^4.4.3" } }, "sha512-l3Z/lMEZEj/gv0ZUTsAcCQ9q/UIaduW6WCMkHY4Fl0FHg6fJ8iNfEXDIrunUpnCNSed0Vt1is7yhYnNCwvS1Yw=="],
+    "afpnews-api": ["afpnews-api@3.0.0-next.0", "", { "dependencies": { "@types/btoa-lite": "^1.0.2", "@types/events": "^3.0.3", "@types/moo": "^0.5.10", "@types/nearley": "^2.11.5", "@types/node": "^26.1.1", "@types/statuses": "^2.0.6", "btoa-lite": "^1.0.0", "events": "^3.3.0", "moo": "^0.5.3", "nearley": "^2.20.1", "statuses": "^2.0.2", "zod": "^4.4.3" } }, "sha512-PU1ZYTDbJP9Ed6otwO4nWmaHrk2ER6uZzjqz5el0QRcE6H3QTSlYx5Lk2gFo4HN+Vxk87Faq9KQWPMmqIynMjQ=="],
 
     "blake3-wasm": ["blake3-wasm@2.1.5", "", {}, "sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g=="],
 
