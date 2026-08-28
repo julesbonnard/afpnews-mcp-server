@@ -23,6 +23,13 @@ const inputSchema = z.object({
 
 type ListFacetsInput = z.infer<typeof inputSchema>;
 
+function truncatedContent<T>(items: T[], serialize: (slice: T[]) => string) {
+  const { text, truncated, remaining } = truncateToLimit(items, serialize);
+  const content = [textContent(text)];
+  if (truncated) content.push(textContent(truncationHint(remaining)));
+  return { content };
+}
+
 export const afpListFacetsTool = {
   name: 'afp_list_facets',
   title: 'List AFP Facet Values',
@@ -86,34 +93,19 @@ Examples:
       }
 
       if (format === 'json') {
-        const { text, truncated, remaining } = truncateToLimit(
-          results,
-          (slice) => JSON.stringify(slice, null, 2),
-        );
-        const content = [textContent(text)];
-        if (truncated) content.push(textContent(truncationHint(remaining)));
-        return { content };
+        return truncatedContent(results, (slice) => JSON.stringify(slice, null, 2));
       }
 
       if (format === 'csv') {
         const rows = results.map(r => `${escapeCsvValue(r.name)},${r.count}`);
-        const { text, truncated, remaining } = truncateToLimit(
-          rows,
-          (slice) => ['name,count', ...slice].join('\n'),
-        );
-        const content = [textContent(text)];
-        if (truncated) content.push(textContent(truncationHint(remaining)));
-        return { content };
+        return truncatedContent(rows, (slice) => ['name,count', ...slice].join('\n'));
       }
 
       const heading = isTrendingTopics ? 'Trending Topics' : `Facet: ${resolvedFacet}`;
-      const { text, truncated, remaining } = truncateToLimit(
+      return truncatedContent(
         results,
         (slice) => `## ${heading}\n\n${slice.map((item) => `- **${item.name}** — ${item.count} articles`).join('\n')}`,
       );
-      const content = [textContent(text)];
-      if (truncated) content.push(textContent(truncationHint(remaining)));
-      return { content };
     } catch (error) {
       return toolError(formatErrorMessage('listing facet values', error, "Check that the facet name is valid (e.g. 'slug', 'genre', 'country')."));
     }
