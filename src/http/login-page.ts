@@ -1,5 +1,18 @@
-// Security fix #1: XSS — use JSON.stringify for all JS-embedded values
 // Security fix #6: CSP + X-Frame-Options headers added in the route handler
+//
+// redirectUri/codeChallenge/state below are attacker-reachable with no allowlist on
+// codeChallenge/state, and redirectUri accepts any http://localhost:*/127.0.0.1:* URI
+// unconditionally (see isAllowedRedirectUri) — so this is a live XSS surface, not a
+// theoretical one. JSON.stringify() alone (the previous "Security fix #1") is NOT enough to
+// safely embed a string inside an inline <script> block: it escapes `"` and `\` but not `<`,
+// so a value containing "</script>" closes the script element early regardless of JS string
+// context, and CSP's `script-src 'self' 'unsafe-inline'` does nothing to stop the resulting
+// inline <script> from executing. jsValue() additionally escapes `<`/`>`/`&` as \uXXXX, which
+// JS parses back to the same character inside a string literal but the HTML tokenizer can no
+// longer read as markup.
+const jsValue = (v: string): string =>
+  JSON.stringify(v).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+
 export function buildLoginPage(params: {
   redirectUri: string;
   codeChallenge: string;
@@ -41,9 +54,9 @@ export function buildLoginPage(params: {
     </form>
   </div>
   <script>
-    const REDIRECT_URI = ${JSON.stringify(params.redirectUri)};
-    const CODE_CHALLENGE = ${JSON.stringify(params.codeChallenge)};
-    const STATE = ${JSON.stringify(params.state ?? '')};
+    const REDIRECT_URI = ${jsValue(params.redirectUri)};
+    const CODE_CHALLENGE = ${jsValue(params.codeChallenge)};
+    const STATE = ${jsValue(params.state ?? '')};
     document.getElementById('form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btn');

@@ -53,25 +53,11 @@ describe('formatDocument', () => {
 });
 
 describe('MARKDOWN_API_FIELDS', () => {
-  it('contains expected fields', () => {
-    expect(MARKDOWN_API_FIELDS).toContain('uno');
-    expect(MARKDOWN_API_FIELDS).toContain('headline');
-    expect(MARKDOWN_API_FIELDS).toContain('news');
-    expect(MARKDOWN_API_FIELDS).toContain('lang');
-    expect(MARKDOWN_API_FIELDS).toContain('genre');
-  });
-
+  // The membership/mandatory-socle behavior is already exercised behaviorally by the
+  // toApiFields() tests below (MARKDOWN_API_FIELDS is built by calling it) — only the one
+  // deliberate exclusion below documents something toApiFields() doesn't already cover.
   it('does not contain afpshortid (derivable from UNO)', () => {
     expect(MARKDOWN_API_FIELDS).not.toContain('afpshortid');
-  });
-
-  it('contains the mandatory socle required by parseDocument()', () => {
-    expect(MARKDOWN_API_FIELDS).toContain('published');
-    expect(MARKDOWN_API_FIELDS).toContain('class');
-    expect(MARKDOWN_API_FIELDS).toContain('urgency');
-    expect(MARKDOWN_API_FIELDS).toContain('created');
-    expect(MARKDOWN_API_FIELDS).toContain('revision');
-    expect(MARKDOWN_API_FIELDS).toContain('provider');
   });
 });
 

@@ -20,14 +20,20 @@ const FIXTURE_RENDITIONS_NO_PREVIEW = [
 ] as const;
 
 describe('MEDIA_RENDITION_ROLE_MAP', () => {
-  it('maps Quicklook → quicklook', () => expect(MEDIA_RENDITION_ROLE_MAP['Quicklook']).toBe('quicklook'));
-  it('maps Thumbnail → thumbnail', () => expect(MEDIA_RENDITION_ROLE_MAP['Thumbnail']).toBe('thumbnail'));
-  it('maps Preview → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview']).toBe('preview'));
-  it('maps Preview_B → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_B']).toBe('preview'));
-  it('maps Preview_W → preview', () => expect(MEDIA_RENDITION_ROLE_MAP['Preview_W']).toBe('preview'));
-  it('maps HighDef → highdef', () => expect(MEDIA_RENDITION_ROLE_MAP['HighDef']).toBe('highdef'));
-  it('maps Mockup → mockup', () => expect(MEDIA_RENDITION_ROLE_MAP['Mockup']).toBe('mockup'));
-  it('maps Squared120 → squared120', () => expect(MEDIA_RENDITION_ROLE_MAP['Squared120']).toBe('squared120'));
+  // The behavior that matters (Preview > Preview_B priority, unknown roles ignored) is covered
+  // below by extractRenditions — this just locks the whole raw→normalized role mapping in one go.
+  it('maps every known AFP rendition role to its normalized name', () => {
+    expect(MEDIA_RENDITION_ROLE_MAP).toEqual({
+      Quicklook: 'quicklook',
+      Thumbnail: 'thumbnail',
+      Preview: 'preview',
+      Preview_B: 'preview',
+      Preview_W: 'preview',
+      HighDef: 'highdef',
+      Mockup: 'mockup',
+      Squared120: 'squared120',
+    });
+  });
 });
 
 describe('extractRenditions', () => {
@@ -199,11 +205,6 @@ describe('formatMediaDocumentsAsJson', () => {
     expect(parsed.truncated).toBe(false);
     expect(parsed.documents).toHaveLength(2);
     expect(parsed.documents[0].uno).toBe('A');
-  });
-
-  it('truncated flag is false when content is small', () => {
-    const r = formatMediaDocumentsAsJson(docs, { total: 100, offset: 0 });
-    expect(r.truncated).toBe(false);
   });
 
   it('truncates when content exceeds CHARACTER_LIMIT', () => {

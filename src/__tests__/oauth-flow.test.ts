@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { EncryptJWT } from 'jose';
 import * as actualApi from 'afpnews-api';
-import { deriveKey } from '../http/tokens.js';
+import { deriveKey, encryptAfpToken, encryptAfpRefreshToken } from '../http/tokens.js';
 
 process.env.APICORE_API_KEY = 'test-key';
 process.env.APICORE_BASE_URL = 'https://fake.api.afp.com';
@@ -24,12 +24,19 @@ describe('OAuth2 PKCE code flow', () => {
     mock.module('afpnews-api', () => ({
       ...actualApi,
       ApiCore: class {
-        token?: unknown;
+        token?: { refreshToken?: string };
         constructor() {}
-        authenticate = mock().mockResolvedValue({
-          accessToken: 'afp-access-token',
-          refreshToken: 'afp-refresh-token',
-          tokenExpires: Date.now() + 3600_000,
+        // Rejects only for the sentinel refresh token crafted below (AFP refusing an
+        // otherwise-well-formed refresh) — every other call keeps resolving normally.
+        authenticate = mock(async function (this: { token?: { refreshToken?: string } }) {
+          if (this.token?.refreshToken === 'afp-refresh-token-afp-rejects') {
+            throw new Error('AFP rejected the refresh token');
+          }
+          return {
+            accessToken: 'afp-access-token',
+            refreshToken: 'afp-refresh-token',
+            tokenExpires: Date.now() + 3600_000,
+          };
         });
       },
     }));
@@ -85,6 +92,22 @@ describe('OAuth2 PKCE code flow', () => {
     const badVerifierRes = await exchangeCode(code2, 'wrong-verifier');
     expect(badVerifierRes.status).toBe(400);
 
+    // Fresh code, correct verifier, but a redirect_uri that doesn't match the one the code
+    // was minted for.
+    const code3 = await mintCode();
+    const mismatchRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code3,
+        code_verifier: codeVerifier,
+        redirect_uri: 'http://localhost:9/different-callback',
+      }),
+    });
+    expect(mismatchRes.status).toBe(400);
+    expect((await mismatchRes.json()).error_description).toContain('redirect_uri mismatch');
+
     // An expired code (crafted directly, rather than waiting out the real
     // TTL) is rejected.
     const authCodeKey = await deriveKey(process.env.JWT_SECRET!, 'auth-code');
@@ -112,6 +135,89 @@ describe('OAuth2 PKCE code flow', () => {
     });
     expect(mcpRes.status).toBe(200);
     expect(await mcpRes.text()).toContain('afp_search_articles');
+
+    // A well-formed, non-expired access token whose `aud` was minted for a different resource
+    // server (RFC 8707 resource indicator binding) is rejected rather than accepted just because
+    // it decrypts and shares the same JWT_SECRET.
+    const accessKey = await deriveKey(process.env.JWT_SECRET!, 'access-token');
+    const wrongAudienceToken = await encryptAfpToken(accessKey, {
+      at: 'afp-access-token', rt: 'afp-refresh-token', exp: Date.now() + 3600_000, u: 'jdoe',
+      aud: 'http://localhost:9999/mcp',
+    });
+    const wrongAudienceRes = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${wrongAudienceToken}`,
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    expect(wrongAudienceRes.status).toBe(401);
+
+    // grant_type=refresh_token where the refresh_token itself decrypts fine, but AFP then
+    // refuses the refresh (e.g. it was revoked upstream) — distinct from the "undecryptable
+    // token" branch covered by badRefreshRes below.
+    const refreshKey = await deriveKey(process.env.JWT_SECRET!, 'refresh-token');
+    const afpRejectedRefreshToken = await encryptAfpRefreshToken(refreshKey, 'afp-refresh-token-afp-rejects', 'jdoe');
+    const afpRejectsRefreshRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: afpRejectedRefreshToken }),
+    });
+    expect(afpRejectsRefreshRes.status).toBe(401);
+    expect((await afpRejectsRefreshRes.json()).error_description).toContain('Refresh token expired');
+
+    // grant_type=refresh_token: mint a fresh access/refresh token pair from the refresh_token
+    // returned by the authorization_code exchange above.
+    const refreshRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token }),
+    });
+    expect(refreshRes.status).toBe(200);
+    const refreshed = await refreshRes.json();
+    expect(refreshed.access_token).toBeTruthy();
+    expect(refreshed.refresh_token).toBeTruthy();
+
+    // The newly minted access token authenticates /mcp too.
+    const mcpAfterRefreshRes = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${refreshed.access_token}`,
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    expect(mcpAfterRefreshRes.status).toBe(200);
+
+    // An unparseable/garbage refresh_token is rejected rather than crashing the endpoint.
+    const badRefreshRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'not-a-valid-token' }),
+    });
+    expect(badRefreshRes.status).toBe(401);
+    expect((await badRefreshRes.json()).error).toBe('invalid_grant');
+
+    // Missing refresh_token entirely.
+    const missingRefreshRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token' }),
+    });
+    expect(missingRefreshRes.status).toBe(400);
+    expect((await missingRefreshRes.json()).error).toBe('invalid_request');
+
+    // Unknown grant_type.
+    const unsupportedRes = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials' }),
+    });
+    expect(unsupportedRes.status).toBe(400);
+    expect((await unsupportedRes.json()).error).toBe('unsupported_grant_type');
 
     mock.restore();
   });

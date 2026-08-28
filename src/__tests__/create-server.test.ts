@@ -1,6 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test';
 import * as actualApi from 'afpnews-api';
 
+// Each test below calls mock.module('afpnews-api', ...) then `await import('../mcp-server.js')`
+// again — worth flagging since ESM module identity is normally cached per resolved URL, which
+// could make later tests silently exercise the first test's ApiCore mock instead of their own.
+// Verified this isn't the case: Bun's mock.module() does force re-evaluation of the dependent
+// module on each subsequent dynamic import (confirmed with a standalone repro outside this file).
 describe('createServer', () => {
   it('authenticates with provided credentials', async () => {
     const authenticateMock = mock().mockResolvedValue(undefined);
