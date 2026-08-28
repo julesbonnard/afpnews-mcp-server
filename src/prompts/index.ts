@@ -1,4 +1,3 @@
-import type { ServerContext } from '../mcp-server.js';
 import { dailyBriefingPrompt } from './daily-briefing.js';
 import { comprehensiveAnalysisPrompt } from './comprehensive-analysis.js';
 import { factcheckPrompt } from './factcheck.js';
@@ -11,16 +10,4 @@ export const PROMPT_DEFINITIONS = [
   countryNewsPrompt,
 ] as const;
 
-export function registerPrompts({ server }: ServerContext) {
-  for (const prompt of PROMPT_DEFINITIONS) {
-    server.registerPrompt(
-      prompt.name,
-      {
-        title: prompt.title,
-        description: prompt.description,
-        argsSchema: prompt.argsSchema,
-      },
-      prompt.handler,
-    );
-  }
-}
+export type PromptDefinition = (typeof PROMPT_DEFINITIONS)[number];

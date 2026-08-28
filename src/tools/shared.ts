@@ -13,6 +13,10 @@ export const UNO_FORMAT_NOTE = `Note on the UNO identifier (e.g. newsml.afp.com.
   - Short ID (afpshortid): the segment after "doc-", e.g. 98hu39e
   Both are embedded in the UNO — request afpshortid or published as explicit fields only if needed.`;
 
+// Markdown output prefixes each paragraph with a `[¶n]` marker (1-based) — purely technical,
+// never reproduce it when quoting or answering. It matches the AFP Deck's own `?p=n` convention.
+export const PARAGRAPH_MARKER_NOTE = 'Note on paragraph markers: each paragraph is prefixed with `[¶n]` (1-based) — a technical marker only, never reproduce it in a quote or answer.';
+
 export const outputFormatEnum = z.enum(['markdown', 'json', 'csv']);
 export type OutputFormat = z.infer<typeof outputFormatEnum>;
 

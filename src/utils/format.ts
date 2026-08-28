@@ -1,5 +1,5 @@
-import { MANDATORY_RAW_FIELDS } from 'afpnews-api';
-import type { AfpDocument } from 'afpnews-api';
+import { MANDATORY_RAW_FIELDS, parseParagraphBlocks } from 'afpnews-api';
+import type { AfpDocument, AfpParagraph } from 'afpnews-api';
 import type { DocField, TextContent } from './types.js';
 import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
 
@@ -42,6 +42,29 @@ const RAW_FIELD_OVERRIDES: Partial<Record<DocField, readonly string[]>> = {
 export function toApiFields(fields: readonly DocField[]): string[] {
   const raw = fields.flatMap(f => RAW_FIELD_OVERRIDES[f] ?? [f]);
   return [...new Set([...MANDATORY_RAW_FIELDS, ...raw])];
+}
+
+/**
+ * Renders paragraphs as structured Markdown (### for subtitles, - for list
+ * items) with a `[¶n]` marker per paragraph — the same numbering convention
+ * afpnews-deck uses for its `?p=n` deep links, so a model reading this text
+ * can build a correct link back to a specific paragraph. A list block's `j`-th
+ * item is always raw paragraph `block.startIndex + j`, since grouping only
+ * merges strictly consecutive dash lines.
+ */
+function renderParagraphsMarkdown(paragraphs: AfpParagraph[]): string {
+  const blocks = parseParagraphBlocks(paragraphs.map(p => p.text));
+  return blocks
+    .map((block) => {
+      if (block.type === 'subtitle') return `### [¶${block.startIndex + 1}] ${block.text}`;
+      if (block.type === 'list') {
+        return block.items
+          .map((item, j) => `- [¶${block.startIndex + j + 1}] ${item}`)
+          .join('\n');
+      }
+      return `[¶${block.startIndex + 1}] ${block.text}`;
+    })
+    .join('\n\n');
 }
 
 /** Render a video shot list (timecodes + descriptions + soundbite quotes) from `AfpDocument.shots`. */
@@ -186,10 +209,9 @@ export function formatDocument(doc: AfpDocument, fullText = false): TextContent 
   if (doc.advisory) meta.push(`Advisory: ${doc.advisory}`);
   if (doc.events.length) meta.push(`Event: ${doc.events.map(e => e.name).join(', ')}`);
 
-  const paragraphs = doc.paragraphs.map(p => p.text);
-  const body = fullText
-    ? paragraphs.join('\n\n')
-    : paragraphs.slice(0, EXCERPT_PARAGRAPH_COUNT).join('\n\n');
+  const body = renderParagraphsMarkdown(
+    fullText ? doc.paragraphs : doc.paragraphs.slice(0, EXCERPT_PARAGRAPH_COUNT),
+  );
 
   return textContent(`## ${doc.headline}\n*${meta.join(' | ')}*\n\n${body}`);
 }
@@ -217,7 +239,7 @@ export function formatFullArticle(doc: AfpDocument): TextContent {
   if (flags) lines.push(flags);
 
   const meta = lines.join('\n');
-  const body = doc.shots?.length ? renderShots(doc.shots) : doc.paragraphs.map(p => p.text).join('\n\n');
+  const body = doc.shots?.length ? renderShots(doc.shots) : renderParagraphsMarkdown(doc.paragraphs);
 
   return textContent(`## ${doc.headline}\n\n${meta}\n\n---\n\n${body}`);
 }

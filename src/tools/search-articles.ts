@@ -19,6 +19,7 @@ import {
   docFieldEnum,
   facetParamValueSchema,
   UNO_FORMAT_NOTE,
+  PARAGRAPH_MARKER_NOTE,
 } from './shared.js';
 
 const reservedFacetKeys = new Set([
@@ -65,6 +66,8 @@ export const afpSearchArticlesTool = {
 Prefer this tool over afp_search_media unless the user explicitly asks for photos, videos, graphics, or motion design.
 
 ${UNO_FORMAT_NOTE}
+
+${PARAGRAPH_MARKER_NOTE}
 
 Args:
   - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)

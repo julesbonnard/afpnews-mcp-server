@@ -2,9 +2,9 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { parseDocument } from 'afpnews-api';
 import { McpServer } from '@modelcontextprotocol/server';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { registerTools } from '../tools/index.js';
-import { registerResources } from '../resources/index.js';
-import { registerPrompts } from '../prompts/index.js';
+import { registerTools } from '../tools/register.js';
+import { registerResources } from '../resources/register.js';
+import { registerPrompts } from '../prompts/register.js';
 import type { ServerContext } from '../mcp-server.js';
 import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs, parseFixtures } from './fixtures.js';
 

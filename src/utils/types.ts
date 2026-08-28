@@ -45,6 +45,7 @@ export interface ImageContent {
 export type AnyContent = TextContent | ImageContent;
 
 export interface ToolSuccess {
+  isError?: false;
   content: AnyContent[];
 }
 
