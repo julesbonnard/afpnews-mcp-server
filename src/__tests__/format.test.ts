@@ -150,6 +150,11 @@ describe('pickDocFields', () => {
   it('falls back to null for an absent optional field', () => {
     expect(pickDocFields(doc, ['city'])).toEqual({ city: null });
   });
+
+  it('maps wordCount straight through under its own raw name', () => {
+    const withWordCount = parseDocument({ ...FIXTURE_DOC, wordCount: 536 });
+    expect(pickDocFields(withWordCount, ['wordCount'])).toEqual({ wordCount: 536 });
+  });
 });
 
 describe('formatFullArticle', () => {

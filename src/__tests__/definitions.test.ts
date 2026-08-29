@@ -55,14 +55,15 @@ describe('TOOL_DEFINITIONS', () => {
   // before the raw handler ever sees them. Called directly off TOOL_DEFINITIONS — as
   // afpnews-deck's aiTools.ts does, since it only has inputJsonSchema to describe the tool to
   // the LLM, not to validate its output — nothing used to stand between a hallucinated field
-  // name and the raw handler. Here that was `fields: ['wordCount']` (not a real DocField)
-  // reaching the CSV formatter's accessor lookup table and crashing with an opaque
-  // "TypeError: ... is not a function" instead of a clean, actionable error.
+  // name and the raw handler. Originally reproduced with `fields: ['wordCount']` (not a real
+  // DocField at the time) reaching the CSV formatter's accessor lookup table and crashing with
+  // an opaque "TypeError: ... is not a function" instead of a clean, actionable error — now a
+  // valid field (see ALL_DOC_FIELDS), so this uses a field name that will never be real instead.
   it('rejects invalid args with a clean isError result instead of crashing (unvalidated direct call, bypassing the MCP protocol layer)', async () => {
     const searchTool = TOOL_DEFINITIONS.find((t) => t.name === 'afp_search_articles')!;
     const apicore = { search: async () => ({ documents: [], count: 0 }) } as any;
 
-    const result = await searchTool.handler(apicore, { fields: ['wordCount'], format: 'csv' });
+    const result = await searchTool.handler(apicore, { fields: ['notARealField'], format: 'csv' });
 
     expect(result.isError).toBe(true);
     const text = (result.content[0] as { type: string; text: string }).text;
