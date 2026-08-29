@@ -68,10 +68,14 @@ function renderParagraphsMarkdown(paragraphs: AfpParagraph[]): string {
     .join('\n\n');
 }
 
-/** Render a video shot list (timecodes + descriptions + soundbite quotes) from `AfpDocument.shots`. */
+/**
+ * Render a video shot list (timecodes + descriptions + soundbite quotes) from `AfpDocument.shots`.
+ * `(t=n)` is the shot's start time in seconds — the same convention afpnews-deck uses for its
+ * `?t=n` deep links, so a model reading this text can build a correct link back to a shot.
+ */
 function renderShots(shots: NonNullable<AfpDocument['shots']>): string {
   const lines = shots.map((shot) => {
-    const head = `${shot.numero}. [${shot.start}-${shot.end}] ${shot.description}`.trimEnd();
+    const head = `${shot.numero}. [${shot.start}-${shot.end}] (t=${shot.startSec}) ${shot.description}`.trimEnd();
     const quotes = shot.citations.map((c) => `   "${c.text}"`);
     return [head, ...quotes].join('\n');
   });

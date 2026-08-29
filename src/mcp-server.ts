@@ -26,6 +26,23 @@ export interface CreateServerOptions {
   baseUrl?: string;
 }
 
+/** Builds and wires an MCP server around an already-usable ApiCore instance. Use this directly
+ * if you manage your own AFP session; createServer() below is for callers who don't. */
+export function buildServer(apicore: ApiCore): McpServer {
+  const server = new McpServer({
+    name: "afpnews",
+    version,
+  });
+
+  const ctx = { server, apicore };
+
+  registerTools(ctx);
+  registerResources(ctx);
+  registerPrompts(ctx);
+
+  return server;
+}
+
 export async function createServer({
   apiKey,
   username,
@@ -47,16 +64,5 @@ export async function createServer({
     throw new Error('Missing authentication: provide either authToken or username+password.');
   }
 
-  const server = new McpServer({
-    name: "afpnews",
-    version,
-  });
-
-  const ctx = { server, apicore };
-
-  registerTools(ctx);
-  registerResources(ctx);
-  registerPrompts(ctx);
-
-  return server;
+  return buildServer(apicore);
 }
