@@ -6,9 +6,8 @@ import {
   RESOURCE_DEFINITIONS,
 } from '../definitions.js';
 
-// `./definitions` is the package's public, framework-agnostic export (documented in README.md,
-// consumed externally e.g. by afpnews-deck's aiTools.ts). Nothing else in this repo imports it,
-// so nothing else would notice a shape regression here — this is the only safety net.
+// `./definitions` is the package's public, framework-agnostic export. Nothing else in this
+// repo imports it, so this is the only safety net against a shape regression.
 
 describe('AFP_DEFINITIONS', () => {
   it('re-exports the same tools/prompts/resources collections', () => {
@@ -32,7 +31,7 @@ describe('TOOL_DEFINITIONS', () => {
     );
   });
 
-  it('gives each tool the documented shape (name, title, description, inputSchema, inputJsonSchema) — no handler: metadata only, see the interface doc comment', () => {
+  it('gives each tool the documented shape (name, title, description, inputSchema, inputJsonSchema, no handler)', () => {
     for (const tool of TOOL_DEFINITIONS) {
       expect(typeof tool.name).toBe('string');
       expect(typeof tool.title).toBe('string');
