@@ -25,6 +25,7 @@ const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
   'class': d => d.class,
   revision: d => d.revision,
   created: d => d.created.toISOString(),
+  wordCount: d => d.wordCount,
 };
 
 // Champs publics dont le nom de requête API brut diffère du DocField (ou nécessite plusieurs
