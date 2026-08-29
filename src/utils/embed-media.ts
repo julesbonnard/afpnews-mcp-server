@@ -46,11 +46,11 @@ export async function embedRendition(
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
-    const chunks: string[] = [];
-    for (let i = 0; i < bytes.length; i += 8192) {
-      chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
-    }
-    const data = btoa(chunks.join(''));
+    // Buffer (not btoa/String.fromCharCode): available on both runtimes this
+    // server targets (Bun, Cloudflare Workers with nodejs_compat), and
+    // handles large images without the call-stack limits of spreading bytes
+    // into String.fromCharCode.
+    const data = Buffer.from(bytes).toString('base64');
     // MIME priority: AFP type field → URL extension → HTTP Content-Type → fallback
     let mimeType = inferMimeType(rendition.afpType, rendition.href);
     const ct = response.headers.get('content-type');
