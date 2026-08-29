@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./definitions": "./src/definitions.ts"
+    "./definitions": "./src/definitions.ts",
+    "./server": "./src/mcp-server.ts"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",

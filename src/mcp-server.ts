@@ -26,6 +26,23 @@ export interface CreateServerOptions {
   baseUrl?: string;
 }
 
+/** Builds and wires an MCP server around an already-usable ApiCore instance — the part shared
+ * by createServer() (owns its own auth) and createServerFromApicore() (reuses the caller's). */
+function buildServer(apicore: ApiCore): McpServer {
+  const server = new McpServer({
+    name: "afpnews",
+    version,
+  });
+
+  const ctx = { server, apicore };
+
+  registerTools(ctx);
+  registerResources(ctx);
+  registerPrompts(ctx);
+
+  return server;
+}
+
 export async function createServer({
   apiKey,
   username,
@@ -47,16 +64,15 @@ export async function createServer({
     throw new Error('Missing authentication: provide either authToken or username+password.');
   }
 
-  const server = new McpServer({
-    name: "afpnews",
-    version,
-  });
+  return buildServer(apicore);
+}
 
-  const ctx = { server, apicore };
-
-  registerTools(ctx);
-  registerResources(ctx);
-  registerPrompts(ctx);
-
-  return server;
+/**
+ * Builds an MCP server around an ApiCore instance the caller already authenticated and manages
+ * itself — for a consumer with its own AFP session (e.g. afpnews-deck) that wants the real MCP
+ * protocol, including its input validation, via an in-process transport (e.g. the SDK's
+ * InMemoryTransport) rather than calling ToolDefinition.handler directly and re-authenticating.
+ */
+export function createServerFromApicore(apicore: ApiCore): McpServer {
+  return buildServer(apicore);
 }
