@@ -1,12 +1,20 @@
 import { z } from 'zod';
-import type { ServerContext } from '../mcp-server.js';
+import type { ApiCore } from 'afpnews-api';
+import type { ToolResult } from '../utils/types.js';
 import { afpSearchArticlesTool } from './search-articles.js';
 import { afpGetArticleTool } from './get-article.js';
 import { afpFindSimilarTool } from './find-similar.js';
 import { afpListFacetsTool } from './list-facets.js';
 import { afpSearchMediaTool } from './search-media.js';
 import { afpGetMediaTool } from './get-media.js';
-import { READ_ONLY_ANNOTATIONS } from './shared.js';
+
+export interface ToolDefinition {
+  name: string;
+  title: string;
+  description: string;
+  inputJsonSchema: unknown;
+  handler(apicore: ApiCore, args: unknown): Promise<ToolResult>;
+}
 
 const RAW_TOOLS = [
   afpSearchArticlesTool,
@@ -17,22 +25,9 @@ const RAW_TOOLS = [
   afpGetMediaTool,
 ] as const;
 
-export const TOOL_DEFINITIONS = RAW_TOOLS.map((t) => ({
+export { RAW_TOOLS };
+
+export const TOOL_DEFINITIONS: ToolDefinition[] = RAW_TOOLS.map((t) => ({
   ...t,
   inputJsonSchema: z.toJSONSchema(t.inputSchema),
 }));
-
-export function registerTools(ctx: ServerContext) {
-  for (const tool of RAW_TOOLS) {
-    ctx.server.registerTool(
-      tool.name,
-      {
-        title: tool.title,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        annotations: READ_ONLY_ANNOTATIONS,
-      },
-      async (args: Record<string, unknown>) => (tool.handler as any)(ctx.apicore, args),
-    );
-  }
-}

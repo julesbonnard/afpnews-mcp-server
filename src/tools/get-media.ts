@@ -6,9 +6,6 @@ import type { MediaRendition, MediaRenditions } from '../utils/types.js';
 import { inferMimeType, selectRenditionForEmbed, isSvgRendition, embedRendition } from '../utils/embed-media.js';
 import { renditionEnum, formatErrorMessage } from './shared.js';
 
-// Re-exported for testing (moved to utils/embed-media.ts for reuse by search-media.ts)
-export { inferMimeType, selectRenditionForEmbed };
-
 const inputSchema = z.object({
   uno: z.string().describe('AFP document UNO identifier (e.g. newsml.afp.com.20260316T202634Z.doc-a3jc2qq)'),
   embed: z.boolean().optional().describe('When true, fetches the image and returns it as base64 for Claude vision analysis. Default: false.'),

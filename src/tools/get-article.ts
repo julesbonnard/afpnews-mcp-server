@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
 import { formatFullArticle, textContent, toolError } from '../utils/format.js';
-import { formatErrorMessage, UNO_FORMAT_NOTE } from './shared.js';
+import { formatErrorMessage, UNO_FORMAT_NOTE, PARAGRAPH_MARKER_NOTE } from './shared.js';
 
 const inputSchema = z.object({
   uno: z.string().describe('The unique UNO identifier of the article'),
@@ -27,6 +27,8 @@ Do NOT use this to discover articles — use afp_search_articles for that.
 
 ${UNO_FORMAT_NOTE}
 
+${PARAGRAPH_MARKER_NOTE}
+
 Args:
   - uno: The unique article identifier (e.g. newsml.afp.com.20260222T090659Z.doc-98hu39e)
 
@@ -38,7 +40,7 @@ Returns:
   - **Country:** · **City:** · **Slug:** · **Event:** (when available)
   - **Status:** · **Signal:** · **Advisory:** (when present)
   - ---
-  - Full article body (all paragraphs, no truncation)
+  - Full article body (### for subtitles, - for list items, all paragraphs, no truncation)
 
 Example:
   { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e" }

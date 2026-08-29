@@ -2,7 +2,6 @@ import { describe, it, expect, mock } from 'bun:test';
 import { parseDocument } from 'afpnews-api';
 import { afpSearchArticlesTool } from '../tools/search-articles.js';
 import { afpSearchMediaTool } from '../tools/search-media.js';
-import { afpListFacetsTool } from '../tools/list-facets.js';
 import { FIXTURE_DOC, parseFixtures } from './fixtures.js';
 
 describe('tool defaults', () => {
@@ -42,15 +41,6 @@ describe('tool defaults', () => {
     expect(request.provider).toEqual(['afp']);
   });
 
-  it('afp_list_facets defaults to AFP text documents', async () => {
-    const apicore = {
-      list: mock().mockResolvedValue({ keywords: [{ name: 'economy', count: 42 }] }),
-    };
-
-    await afpListFacetsTool.handler(apicore, { facet: 'slug' });
-
-    const [, params] = apicore.list.mock.calls[0]!;
-    expect(params.class).toEqual(['text']);
-    expect(params.provider).toEqual(['afp']);
-  });
+  // afp_list_facets' defaults are already asserted in full (class/provider/langs/size) by
+  // 'applies AFP text defaults with explicit lang outside preset' in list-facets.test.ts.
 });

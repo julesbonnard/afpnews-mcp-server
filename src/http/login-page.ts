@@ -1,12 +1,13 @@
-// Security fix #1: XSS — use JSON.stringify for all JS-embedded values
-// Security fix #6: CSP + X-Frame-Options headers added in the route handler
+import { html } from 'hono/html';
+
 export function buildLoginPage(params: {
   redirectUri: string;
   codeChallenge: string;
   state?: string;
   clientId?: string;
-}): string {
-  return `<!DOCTYPE html>
+  nonce: string;
+}) {
+  return html`<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -32,7 +33,7 @@ export function buildLoginPage(params: {
     <div class="logo">AFP News MCP</div>
     <div class="subtitle">Connectez-vous avec vos identifiants AFP</div>
     <div class="error" id="err"></div>
-    <form id="form">
+    <form id="form" data-redirect-uri="${params.redirectUri}" data-code-challenge="${params.codeChallenge}" data-state="${params.state ?? ''}">
       <label for="username">Identifiant AFP</label>
       <input id="username" name="username" type="text" autocomplete="username" required>
       <label for="password">Mot de passe</label>
@@ -40,11 +41,10 @@ export function buildLoginPage(params: {
       <button type="submit" id="btn">Se connecter</button>
     </form>
   </div>
-  <script>
-    const REDIRECT_URI = ${JSON.stringify(params.redirectUri)};
-    const CODE_CHALLENGE = ${JSON.stringify(params.codeChallenge)};
-    const STATE = ${JSON.stringify(params.state ?? '')};
-    document.getElementById('form').addEventListener('submit', async (e) => {
+  <script nonce="${params.nonce}">
+    const form = document.getElementById('form');
+    const { redirectUri: REDIRECT_URI, codeChallenge: CODE_CHALLENGE, state: STATE } = form.dataset;
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btn');
       const err = document.getElementById('err');
@@ -85,34 +85,4 @@ export function buildLoginPage(params: {
   </script>
 </body>
 </html>`;
-}
-
-// Security fix #2/#7: strict redirect_uri whitelist. Every explicit https
-// callback (Claude, ChatGPT, Mistral, ...) is configured in one place, the
-// MCP_ALLOWED_REDIRECT_URIS env var — see wrangler.toml/.env.example for
-// the actual list. localhost/127.0.0.1 (any port — local MCP clients like
-// Claude Code) is handled separately in isAllowedRedirectUri() below since
-// it's a pattern, not an enumerable value.
-//
-// `env` defaults to `process.env` (Bun) but takes a plain object so the
-// same function works from a Cloudflare Worker's `env` binding, which
-// isn't `process.env` — see src/http/worker.ts.
-export function buildAllowedUris(env: Record<string, string | undefined> = process.env): string[] {
-  const extra = env.MCP_ALLOWED_REDIRECT_URIS;
-  if (!extra) return [];
-  return extra.split(',').map(s => s.trim()).filter(Boolean);
-}
-
-export function isAllowedRedirectUri(uri: string, allowedUris: string[]): boolean {
-  try {
-    const url = new URL(uri);
-    // Claude Code uses a local HTTP server on a random port
-    if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
-      return true;
-    }
-    // Explicit https whitelist (exact match)
-    return allowedUris.includes(uri);
-  } catch {
-    return false;
-  }
 }

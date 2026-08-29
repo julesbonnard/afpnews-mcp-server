@@ -25,7 +25,8 @@ import {
   encryptAuthCode,
   decryptAuthCode,
 } from './tokens.js';
-import { buildLoginPage, buildAllowedUris, isAllowedRedirectUri } from './login-page.js';
+import { buildLoginPage } from './login-page.js';
+import { buildAllowedUris, isAllowedRedirectUri, generateNonce } from './security.js';
 import { ApiCore } from 'afpnews-api';
 
 export type HttpConfig = {
@@ -37,11 +38,6 @@ export type HttpConfig = {
   allowedUris: string[];
 };
 
-// The only function that touches raw environment variables. `env` defaults
-// to `process.env` (Bun) but takes a plain object so the same function
-// works from a Cloudflare Worker's `env` binding — see src/http/worker.ts.
-// Everything below this point (createHttpApp) only ever reads from the
-// returned HttpConfig, never from `process.env`/`env` directly.
 export function resolveHttpConfig(env: Record<string, string | undefined> = process.env): HttpConfig {
   const apiKey = env.APICORE_API_KEY?.trim();
   if (!apiKey) throw new Error('APICORE_API_KEY environment variable is required');
@@ -63,14 +59,6 @@ export function resolveHttpConfig(env: Record<string, string | undefined> = proc
   return { apiKey, afpBaseUrl, jwtSecret, serverUrl, port, allowedUris };
 }
 
-// Rate limiting (elysia-rate-limit in the previous Elysia version) is left
-// to the hosting platform — e.g. Cloudflare's own Rate Limiting — rather
-// than a hand-rolled in-process counter, which would be per-isolate-only
-// and thus pointless on an edge deployment anyway.
-
-// Builds the Hono app from an already-resolved config. Platform-agnostic —
-// no `process.env`, no `Bun.*` — so it's shared verbatim between
-// startHttpServer() (Bun) and worker.ts (Cloudflare Workers).
 export async function createHttpApp(config: HttpConfig) {
   const { apiKey, afpBaseUrl, jwtSecret, serverUrl, allowedUris } = config;
 
@@ -101,13 +89,6 @@ export async function createHttpApp(config: HttpConfig) {
     resourceName: 'AFP News MCP',
   };
 
-  // The authorization code is a self-contained JWE (see tokens.ts) with no
-  // backing server-side state at all — not even a "consumed" marker, so
-  // this server can run with zero infrastructure (e.g. a Cloudflare Worker
-  // with no KV/Redis). There is no single-use enforcement: its short TTL
-  // is the only thing bounding a replay window. See the comment on
-  // AuthCodePayload in tokens.ts for the full trade-off.
-
   const makeAfpClient = () => new ApiCore({ baseUrl: afpBaseUrl, apiKey });
 
   const mintTokenResponse = async (afpToken: AfpAuthToken, username: string) => {
@@ -123,9 +104,6 @@ export async function createHttpApp(config: HttpConfig) {
     return { access_token: accessToken, token_type: 'bearer', expires_in: expiresIn, refresh_token: refreshToken };
   };
 
-  // Resource Server verifier: our own AFP-token JWE doubles as the MCP
-  // bearer token, so verification is decryption + audience binding rather
-  // than introspection against a separate Authorization Server.
   const verifier: OAuthTokenVerifier = {
     async verifyAccessToken(token) {
       const payload = await decryptAfpToken(accessKey, token).catch(() => null);
@@ -146,9 +124,6 @@ export async function createHttpApp(config: HttpConfig) {
   const authGate = requireBearerAuth({ verifier, resourceMetadataUrl: protectedResourceMetadataUrl });
   const mcpOriginHostnames = [resourceUrl.hostname, ...localhostAllowedOrigins()];
 
-  // Stateless per-request serving (spec 2026-07-28): a fresh McpServer is
-  // built from the request's own bearer token, so no session store is
-  // needed and any instance behind a load balancer can serve any request.
   const mcpHandler = createMcpHandler(
     async (ctx: McpRequestContext) => {
       const extra = ctx.authInfo?.extra as { accessToken: string; refreshToken: string } | undefined;
@@ -199,16 +174,14 @@ export async function createHttpApp(config: HttpConfig) {
     if (!isAllowedRedirectUri(redirect_uri, allowedUris)) {
       return c.text('Invalid redirect_uri: not in the allowed list', 400);
     }
-    return c.html(buildLoginPage({ redirectUri: redirect_uri, codeChallenge: code_challenge, state, clientId: client_id }), 200, {
-      'Content-Security-Policy': "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'",
+    const nonce = generateNonce();
+    return c.html(buildLoginPage({ redirectUri: redirect_uri, codeChallenge: code_challenge, state, clientId: client_id, nonce }), 200, {
+      'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; frame-ancestors 'none'`,
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
     });
   });
 
-  // RFC 6749 §4.1.3/§6: the token endpoint takes application/x-www-form-urlencoded.
-  // Our own login page (login-page.ts) posts the afp_credentials grant the
-  // same way, so this is the only format the route needs to handle.
   const parseTokenRequestBody = async (c: Context): Promise<Record<string, any> | null> => {
     try {
       return await c.req.parseBody();
@@ -300,12 +273,6 @@ export async function createHttpApp(config: HttpConfig) {
     return c.json({ error: 'unsupported_grant_type' }, 400);
   });
 
-  // originValidation is the official Hono adapter's equivalent of the
-  // framework-neutral originValidationResponse() used before — scoped to
-  // /mcp only, matching the SDK's documented createMcpHandler() mounting
-  // pattern (the metadata/oauth routes above need to stay reachable
-  // cross-origin for OAuth discovery). No parsedBody needed: nothing reads
-  // the request body before it reaches mcpHandler.fetch.
   app.all('/mcp', originValidation(mcpOriginHostnames), async (c) => {
     const auth = await authGate(c.req.raw);
     if (auth instanceof Response) return auth;
@@ -315,9 +282,6 @@ export async function createHttpApp(config: HttpConfig) {
   return app;
 }
 
-// Bun entry point — the only Bun-specific code in this file. A Cloudflare
-// Worker entry point instead builds the same app via createHttpApp() and
-// exports its `fetch` directly; see src/http/worker.ts.
 export async function startHttpServer() {
   const config = resolveHttpConfig();
   const app = await createHttpApp(config);

@@ -8,7 +8,7 @@ import {
   formatDocumentOutput,
   toApiFields,
 } from '../utils/format.js';
-import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/config.js';
 import type { DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
@@ -19,6 +19,7 @@ import {
   docFieldEnum,
   facetParamValueSchema,
   UNO_FORMAT_NOTE,
+  PARAGRAPH_MARKER_NOTE,
 } from './shared.js';
 
 const reservedFacetKeys = new Set([
@@ -47,7 +48,7 @@ const inputSchema = z.object({
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedFacetKeys.has(key)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['facets', key],
         message: `Facet key "${key}" is reserved and must be provided at top-level.`,
       });
@@ -65,6 +66,8 @@ export const afpSearchArticlesTool = {
 Prefer this tool over afp_search_media unless the user explicitly asks for photos, videos, graphics, or motion design.
 
 ${UNO_FORMAT_NOTE}
+
+${PARAGRAPH_MARKER_NOTE}
 
 Args:
   - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)

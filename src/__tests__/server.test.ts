@@ -2,9 +2,9 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { parseDocument } from 'afpnews-api';
 import { McpServer } from '@modelcontextprotocol/server';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { registerTools } from '../tools/index.js';
-import { registerResources } from '../resources/index.js';
-import { registerPrompts } from '../prompts/index.js';
+import { registerTools } from '../tools/register.js';
+import { registerResources } from '../resources/register.js';
+import { registerPrompts } from '../prompts/register.js';
 import type { ServerContext } from '../mcp-server.js';
 import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs, parseFixtures } from './fixtures.js';
 
@@ -88,20 +88,18 @@ describe('MCP integration', () => {
       expect(msg.text).toBe('No results found.');
     });
 
-    it('returns excerpt by default (no fullText)', async () => {
+    it('threads the fullText argument through to formatDocument (excerpt by default, full text when set)', async () => {
+      // The truncation logic itself is unit-tested against formatDocument() directly in
+      // format.test.ts — this only proves the fullText tool argument actually reaches it.
       apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
-      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
-      // pagination line + 1 document
-      const msg = result.content![1] as { type: string; text: string };
-      expect(msg.text).toContain('Second paragraph with more details.');
-      expect(msg.text).not.toContain('Third paragraph continues.');
-    });
+      const excerptResult = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
+      const excerptMsg = excerptResult.content![1] as { type: string; text: string };
+      expect(excerptMsg.text).not.toContain('Fifth paragraph is extra content.');
 
-    it('returns full text when fullText=true', async () => {
       apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
-      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', fullText: true } });
-      const msg = result.content![1] as { type: string; text: string };
-      expect(msg.text).toContain('Fifth paragraph is extra content.');
+      const fullResult = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', fullText: true } });
+      const fullMsg = fullResult.content![1] as { type: string; text: string };
+      expect(fullMsg.text).toContain('Fifth paragraph is extra content.');
     });
 
     it('preset a-la-une applies filters and defaults to full text', async () => {
@@ -267,13 +265,14 @@ describe('MCP integration', () => {
       expect(text).not.toContain('**Country:**');
     });
 
-    it('renders a timecoded shot list body for video documents', async () => {
+    it('routes a video document through the shot-list rendering path', async () => {
+      // The shot-list content itself (timecodes, citations) is unit-tested against
+      // formatFullArticle() directly in format.test.ts — this only proves the MCP tool wiring
+      // reaches that path for a video document.
       apicore.get.mockResolvedValueOnce(parseDocument(FIXTURE_VIDEO_DOC));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-VID-001' } });
       const text = getText(result);
       expect(text).toContain('## Shot list');
-      expect(text).toContain('1. [00:00-00:12] Vue aérienne de la ville');
-      expect(text).toContain('"Tout a commencé très vite"');
     });
 
     it('returns the raw document as json when format=json', async () => {
@@ -453,6 +452,16 @@ describe('MCP integration', () => {
       const content = result.messages[0].content as { type: string; text: string };
       expect(content.text).toContain('afp_search_articles');
       expect(content.text).toContain('afp_find_similar');
+      expect(content.text).toContain('afp_get_article');
+    });
+
+    it('factcheck returns user message with the query and references the right tools', async () => {
+      const result = await client.getPrompt({ name: 'factcheck', arguments: { query: 'climate change' } });
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].role).toBe('user');
+      const content = result.messages[0].content as { type: string; text: string };
+      expect(content.text).toContain('climate change');
+      expect(content.text).toContain('afp_search_articles');
       expect(content.text).toContain('afp_get_article');
     });
   });

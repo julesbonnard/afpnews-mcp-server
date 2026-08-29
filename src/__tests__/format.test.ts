@@ -50,28 +50,52 @@ describe('formatDocument', () => {
     const result = formatDocument(parseDocument(FIXTURE_DOC), true);
     expect(result.text).toContain('Fifth paragraph is extra content.');
   });
+
+  it('prefixes each returned paragraph with its 1-based raw index, unaffected by the excerpt slice', () => {
+    // .slice(0, EXCERPT_PARAGRAPH_COUNT) is a prefix slice, so markers stay 1/2 — same raw index
+    // whether the excerpt is 2 paragraphs or the full 5.
+    const result = formatDocument(parseDocument(FIXTURE_DOC), false);
+    expect(result.text).toContain('[¶1] First paragraph of the article.');
+    expect(result.text).toContain('[¶2] Second paragraph with more details.');
+  });
+});
+
+describe('formatDocument / formatFullArticle — structured paragraph markdown', () => {
+  const doc = parseDocument({
+    ...FIXTURE_DOC,
+    news: [
+      'Intro paragraph.',
+      '. Section subtitle',
+      '— Point A',
+      '— Point B',
+      'Closing paragraph.',
+    ],
+  });
+
+  it('renders a subtitle paragraph as a ### heading with its marker', () => {
+    const result = formatFullArticle(doc);
+    expect(result.text).toContain('### [¶2] Section subtitle');
+  });
+
+  it('renders a dash-list block as bullet items, each keeping its own raw index', () => {
+    const result = formatFullArticle(doc);
+    expect(result.text).toContain('- [¶3] Point A');
+    expect(result.text).toContain('- [¶4] Point B');
+  });
+
+  it('numbers plain paragraphs around a list block with their real raw index', () => {
+    const result = formatFullArticle(doc);
+    expect(result.text).toContain('[¶1] Intro paragraph.');
+    expect(result.text).toContain('[¶5] Closing paragraph.');
+  });
 });
 
 describe('MARKDOWN_API_FIELDS', () => {
-  it('contains expected fields', () => {
-    expect(MARKDOWN_API_FIELDS).toContain('uno');
-    expect(MARKDOWN_API_FIELDS).toContain('headline');
-    expect(MARKDOWN_API_FIELDS).toContain('news');
-    expect(MARKDOWN_API_FIELDS).toContain('lang');
-    expect(MARKDOWN_API_FIELDS).toContain('genre');
-  });
-
+  // The membership/mandatory-socle behavior is already exercised behaviorally by the
+  // toApiFields() tests below (MARKDOWN_API_FIELDS is built by calling it) — only the one
+  // deliberate exclusion below documents something toApiFields() doesn't already cover.
   it('does not contain afpshortid (derivable from UNO)', () => {
     expect(MARKDOWN_API_FIELDS).not.toContain('afpshortid');
-  });
-
-  it('contains the mandatory socle required by parseDocument()', () => {
-    expect(MARKDOWN_API_FIELDS).toContain('published');
-    expect(MARKDOWN_API_FIELDS).toContain('class');
-    expect(MARKDOWN_API_FIELDS).toContain('urgency');
-    expect(MARKDOWN_API_FIELDS).toContain('created');
-    expect(MARKDOWN_API_FIELDS).toContain('revision');
-    expect(MARKDOWN_API_FIELDS).toContain('provider');
   });
 });
 

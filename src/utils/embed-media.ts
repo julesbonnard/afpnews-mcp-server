@@ -1,6 +1,5 @@
 import type { MediaRendition, MediaRenditions, ImageContent } from './types.js';
 
-// Exported for testing
 export function inferMimeType(afpType: string | undefined, href: string): string {
   if (afpType === 'Photo') return 'image/jpeg';
   if (afpType === 'Graphic') return 'image/png';
@@ -13,7 +12,6 @@ export function inferMimeType(afpType: string | undefined, href: string): string
   return 'image/jpeg';
 }
 
-// Exported for testing
 export function selectRenditionForEmbed(
   renditions: MediaRenditions,
   requested: keyof MediaRenditions,

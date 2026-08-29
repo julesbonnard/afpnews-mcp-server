@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { parseDocument } from 'afpnews-api';
-import { afpSearchMediaTool, EMBED_MAX_DOCS } from '../tools/search-media.js';
+import { afpSearchMediaTool } from '../tools/search-media.js';
+import { EMBED_MAX_DOCS } from '../utils/config.js';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 

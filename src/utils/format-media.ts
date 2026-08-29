@@ -1,6 +1,6 @@
 import type { AfpDocument, AfpMediaRendition } from 'afpnews-api';
 import type { AFPMediaDocument, MediaRenditions, MediaRendition, TextContent } from './types.js';
-import { textContent, truncateToLimit, truncateContentItems, truncationHint } from './format.js';
+import { textContent, truncateToLimit, truncateContentItems, truncationHint, escapeCsvValue } from './format.js';
 
 // Mapping role AFP → clé normalisée (utilise m.role, pas m.rendition)
 // Preview est prioritaire sur Preview_B/Preview_W (premier match gagne)
@@ -111,19 +111,14 @@ export function formatMediaDocumentsAsJson(
 
 export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
   const header = 'uno,title,caption,creditLine,published,class,thumbnail_href';
-  const escape = (v: unknown) => {
-    const str = String(v ?? '');
-    if (/[",\n\r]/.test(str)) return `"${str.replaceAll('"', '""')}"`;
-    return str;
-  };
   const rows = docs.map((d) => [
-    escape(d.uno),
-    escape(d.title),
-    escape(d.caption),
-    escape(d.creditLine),
-    escape(d.published),
-    escape(d.class),
-    escape(d.renditions.thumbnail?.href),
+    escapeCsvValue(d.uno),
+    escapeCsvValue(d.title),
+    escapeCsvValue(d.caption),
+    escapeCsvValue(d.creditLine),
+    escapeCsvValue(d.published),
+    escapeCsvValue(d.class),
+    escapeCsvValue(d.renditions.thumbnail?.href),
   ].join(','));
 
   const { text, count, truncated, remaining } = truncateToLimit(
