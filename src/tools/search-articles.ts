@@ -8,7 +8,7 @@ import {
   formatDocumentOutput,
   toApiFields,
 } from '../utils/format.js';
-import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/config.js';
 import type { DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
@@ -48,7 +48,7 @@ const inputSchema = z.object({
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedFacetKeys.has(key)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['facets', key],
         message: `Facet key "${key}" is reserved and must be provided at top-level.`,
       });

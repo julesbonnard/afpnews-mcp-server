@@ -7,7 +7,7 @@ import {
   formatMediaDocument,
   normalizeMediaDocument,
 } from '../utils/format-media.js';
-import { DEFAULT_SEARCH_SIZE } from '../utils/types.js';
+import { DEFAULT_SEARCH_SIZE, EMBED_MAX_DOCS } from '../utils/config.js';
 import type { AFPMediaDocument, AnyContent, MediaRendition } from '../utils/types.js';
 import { selectRenditionForEmbed, isSvgRendition, embedRendition } from '../utils/embed-media.js';
 import {
@@ -16,10 +16,6 @@ import {
   formatErrorMessage,
   facetParamValueSchema,
 } from './shared.js';
-
-// Fetching + base64-encoding images is costly: cap how many results get embedded per call,
-// regardless of the requested `size` (see handler: `size` itself is clamped when embed is true).
-export const EMBED_MAX_DOCS = 5;
 
 async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent[]> {
   const content: AnyContent[] = [];
@@ -70,7 +66,7 @@ const inputSchema = z.object({
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedMediaFacetKeys.has(key)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['facets', key],
         message: `Facet key "${key}" is reserved and must be provided at top-level.`,
       });

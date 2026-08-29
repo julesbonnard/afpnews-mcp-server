@@ -56,15 +56,9 @@ export interface ToolError {
 
 export type ToolResult = ToolSuccess | ToolError;
 
-export const EXCERPT_PARAGRAPH_COUNT = 2;
-export const CHARACTER_LIMIT = 100_000;
-export const DEFAULT_SEARCH_SIZE = 10;
-
 export const ALL_DOC_FIELDS = [
   'afpshortid', 'uno', 'headline', 'published', 'lang', 'genre',
   'status', 'signal', 'advisory', 'country', 'city', 'slug', 'event', 'class', 'revision', 'created',
 ] as const;
 
 export type DocField = typeof ALL_DOC_FIELDS[number];
-
-export const DEFAULT_OUTPUT_FIELDS: DocField[] = ['uno', 'headline', 'lang', 'genre'];

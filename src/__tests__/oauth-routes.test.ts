@@ -66,12 +66,14 @@ describe('OAuth HTTP routes', () => {
       `${base}/oauth/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=chall123&state=xyz`,
     );
     expect(authorizeRes.status).toBe(200);
-    expect(authorizeRes.headers.get('content-security-policy')).toContain("default-src 'none'");
+    const csp = authorizeRes.headers.get('content-security-policy');
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toMatch(/script-src 'nonce-[^']+'/); // no 'unsafe-inline' for scripts
     expect(authorizeRes.headers.get('x-frame-options')).toBe('DENY');
     const html = await authorizeRes.text();
     expect(html).toContain('AFP News MCP');
-    expect(html).toContain(JSON.stringify(redirectUri));
-    expect(html).toContain('chall123');
+    expect(html).toContain(`data-redirect-uri="${redirectUri}"`);
+    expect(html).toContain('data-code-challenge="chall123"');
 
     // POST /oauth/token grant_type=afp_credentials — missing required fields.
     const missingCredsRes = await fetch(`${base}/oauth/token`, {

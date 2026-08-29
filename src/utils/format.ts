@@ -1,7 +1,7 @@
 import { MANDATORY_RAW_FIELDS, parseParagraphBlocks } from 'afpnews-api';
 import type { AfpDocument, AfpParagraph } from 'afpnews-api';
 import type { DocField, TextContent } from './types.js';
-import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './types.js';
+import { EXCERPT_PARAGRAPH_COUNT, CHARACTER_LIMIT } from './config.js';
 
 /**
  * One accessor per public `DocField`, reading from the canonical `AfpDocument`. This is the

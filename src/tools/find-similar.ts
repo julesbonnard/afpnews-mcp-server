@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ApiCore } from 'afpnews-api';
 import { MARKDOWN_API_FIELDS, textContent, toolError, formatDocumentOutput, toApiFields } from '../utils/format.js';
-import { DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import { DEFAULT_OUTPUT_FIELDS } from '../utils/config.js';
 import type { DocField } from '../utils/types.js';
 import {
   formatErrorMessage,
