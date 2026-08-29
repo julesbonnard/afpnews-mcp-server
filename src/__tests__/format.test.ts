@@ -156,8 +156,8 @@ describe('formatFullArticle', () => {
   it('uses the shot list as body for a video document', () => {
     const result = formatFullArticle(parseDocument(FIXTURE_VIDEO_DOC));
     expect(result.text).toContain('## Shot list');
-    expect(result.text).toContain('1. [00:00-00:12] Vue aérienne de la ville');
-    expect(result.text).toContain('2. [00:12-00:30] Jean Dupont, témoin');
+    expect(result.text).toContain('1. [00:00-00:12] (t=0) Vue aérienne de la ville');
+    expect(result.text).toContain('2. [00:12-00:30] (t=12) Jean Dupont, témoin');
     expect(result.text).toContain('   "Tout a commencé très vite"');
     expect(result.text).toContain('**Class:** video');
   });

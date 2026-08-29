@@ -57,6 +57,7 @@ Args:
   - rendition: Size to embed — 'squared120' (~120px, square crop, lightest), 'quicklook' (~245px, lightest full-frame), 'thumbnail' (320px), 'mockup' (~512px), 'preview' (1200px, default), 'highdef' (~3400px).
                Files > 5 MB are automatically downgraded to a lighter rendition.
                Videos and videography always use thumbnail (poster frame). SVG graphics cannot be embedded.
+               When embed is true, prefer 'quicklook' unless you actually need higher resolution: the default ('preview', 1200px) embeds a much heavier base64 payload.
 
 Returns:
   - Without embed: full metadata + all rendition URLs
