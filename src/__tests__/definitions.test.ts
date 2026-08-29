@@ -1,53 +1,15 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  AFP_DEFINITIONS,
-  TOOL_DEFINITIONS,
-  PROMPT_DEFINITIONS,
-  RESOURCE_DEFINITIONS,
-} from '../definitions.js';
+import { AFP_DEFINITIONS, PROMPT_DEFINITIONS, RESOURCE_DEFINITIONS } from '../definitions.js';
 
 // `./definitions` is the package's public, framework-agnostic export. Nothing else in this
 // repo imports it, so this is the only safety net against a shape regression.
+// Tool metadata isn't part of it — see create-server.test.ts for the equivalent safety net,
+// via the real protocol (listTools()).
 
 describe('AFP_DEFINITIONS', () => {
-  it('re-exports the same tools/prompts/resources collections', () => {
-    expect(AFP_DEFINITIONS.tools).toBe(TOOL_DEFINITIONS);
+  it('re-exports the same prompts/resources collections', () => {
     expect(AFP_DEFINITIONS.prompts).toBe(PROMPT_DEFINITIONS);
     expect(AFP_DEFINITIONS.resources).toBe(RESOURCE_DEFINITIONS);
-  });
-});
-
-describe('TOOL_DEFINITIONS', () => {
-  it('exposes exactly the expected tool names', () => {
-    expect(TOOL_DEFINITIONS.map((t) => t.name).slice().sort()).toEqual(
-      [
-        'afp_search_articles',
-        'afp_get_article',
-        'afp_find_similar',
-        'afp_list_facets',
-        'afp_search_media',
-        'afp_get_media',
-      ].slice().sort(),
-    );
-  });
-
-  it('gives each tool the documented shape (name, title, description, inputSchema, inputJsonSchema, no handler)', () => {
-    for (const tool of TOOL_DEFINITIONS) {
-      expect(typeof tool.name).toBe('string');
-      expect(typeof tool.title).toBe('string');
-      expect(typeof tool.description).toBe('string');
-      expect(typeof tool.inputSchema.safeParse).toBe('function');
-      expect(tool.inputJsonSchema).toBeTypeOf('object');
-      expect('handler' in tool).toBe(false);
-    }
-  });
-
-  it('derives inputJsonSchema from inputSchema via z.toJSONSchema (not hand-maintained)', () => {
-    const getArticle = TOOL_DEFINITIONS.find((t) => t.name === 'afp_get_article');
-    expect(getArticle?.inputJsonSchema).toMatchObject({
-      type: 'object',
-      properties: expect.objectContaining({ uno: expect.anything() }),
-    });
   });
 });
 

@@ -83,17 +83,21 @@ describe('createServer', () => {
   });
 });
 
+async function connectedClient(apicore: Parameters<typeof buildServer>[0]) {
+  const server = buildServer(apicore);
+  const client = new Client({ name: 'test-client', version: '0.0.1' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  return client;
+}
+
 // Reachable via a real Client, including its input validation — not just registered.
 describe('buildServer', () => {
   it('builds a reachable server around the given ApiCore without touching authentication', async () => {
     const apicore = {
       search: mock().mockResolvedValue({ documents: [], count: 0 }),
     } as unknown as Parameters<typeof buildServer>[0];
-
-    const server = buildServer(apicore);
-    const client = new Client({ name: 'test-client', version: '0.0.1' });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const client = await connectedClient(apicore);
 
     const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
 
@@ -105,15 +109,30 @@ describe('buildServer', () => {
     const apicore = {
       search: mock().mockResolvedValue({ documents: [], count: 0 }),
     } as unknown as Parameters<typeof buildServer>[0];
-
-    const server = buildServer(apicore);
-    const client = new Client({ name: 'test-client', version: '0.0.1' });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const client = await connectedClient(apicore);
 
     const result = await client.callTool({ name: 'afp_search_articles', arguments: { fields: ['notARealField'] } });
 
     expect(result.isError).toBe(true);
     expect(apicore.search).not.toHaveBeenCalled();
+  });
+
+  // Equivalent of definitions.test.ts's old exact-name-list guard, now that TOOL_DEFINITIONS
+  // is gone — via the real protocol instead of a static metadata export.
+  it('lists exactly the expected tools', async () => {
+    const client = await connectedClient({} as Parameters<typeof buildServer>[0]);
+
+    const { tools } = await client.listTools();
+
+    expect(tools.map((t) => t.name).slice().sort()).toEqual(
+      [
+        'afp_search_articles',
+        'afp_get_article',
+        'afp_find_similar',
+        'afp_list_facets',
+        'afp_search_media',
+        'afp_get_media',
+      ].slice().sort(),
+    );
   });
 });
