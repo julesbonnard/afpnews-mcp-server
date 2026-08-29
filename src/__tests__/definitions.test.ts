@@ -32,14 +32,14 @@ describe('TOOL_DEFINITIONS', () => {
     );
   });
 
-  it('gives each tool the documented shape (name, title, description, inputSchema, inputJsonSchema, handler)', () => {
+  it('gives each tool the documented shape (name, title, description, inputSchema, inputJsonSchema) — no handler: metadata only, see the interface doc comment', () => {
     for (const tool of TOOL_DEFINITIONS) {
       expect(typeof tool.name).toBe('string');
       expect(typeof tool.title).toBe('string');
       expect(typeof tool.description).toBe('string');
       expect(typeof tool.inputSchema.safeParse).toBe('function');
       expect(tool.inputJsonSchema).toBeTypeOf('object');
-      expect(typeof tool.handler).toBe('function');
+      expect('handler' in tool).toBe(false);
     }
   });
 
@@ -49,34 +49,6 @@ describe('TOOL_DEFINITIONS', () => {
       type: 'object',
       properties: expect.objectContaining({ uno: expect.anything() }),
     });
-  });
-
-  // Regression: called through the MCP protocol (register.ts), args are validated by the SDK
-  // before the raw handler ever sees them. Called directly off TOOL_DEFINITIONS — as
-  // afpnews-deck's aiTools.ts does, since it only has inputJsonSchema to describe the tool to
-  // the LLM, not to validate its output — nothing used to stand between a hallucinated field
-  // name and the raw handler. Here that was `fields: ['wordCount']` (not a real DocField)
-  // reaching the CSV formatter's accessor lookup table and crashing with an opaque
-  // "TypeError: ... is not a function" instead of a clean, actionable error.
-  it('rejects invalid args with a clean isError result instead of crashing (unvalidated direct call, bypassing the MCP protocol layer)', async () => {
-    const searchTool = TOOL_DEFINITIONS.find((t) => t.name === 'afp_search_articles')!;
-    const apicore = { search: async () => ({ documents: [], count: 0 }) } as any;
-
-    const result = await searchTool.handler(apicore, { fields: ['wordCount'], format: 'csv' });
-
-    expect(result.isError).toBe(true);
-    const text = (result.content[0] as { type: string; text: string }).text;
-    expect(text).toContain('afp_search_articles');
-  });
-
-  it('still forwards validated args to the real handler for a valid call', async () => {
-    const searchTool = TOOL_DEFINITIONS.find((t) => t.name === 'afp_search_articles')!;
-    const search = async () => ({ documents: [], count: 0 });
-    const apicore = { search } as any;
-
-    const result = await searchTool.handler(apicore, { query: 'test' });
-
-    expect(result.isError).toBeUndefined();
   });
 });
 
