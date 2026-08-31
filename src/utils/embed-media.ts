@@ -46,11 +46,11 @@ export async function embedRendition(
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
-    // Buffer (not btoa/String.fromCharCode): available on both runtimes this
-    // server targets (Bun, Cloudflare Workers with nodejs_compat), and
-    // handles large images without the call-stack limits of spreading bytes
-    // into String.fromCharCode.
-    const data = Buffer.from(bytes).toString('base64');
+    // Uint8Array.prototype.toBase64 (not Buffer/btoa+String.fromCharCode): this server also
+    // runs in-process inside a browser (afpnews-deck's in-memory MCP transport), where Buffer
+    // doesn't exist — and unlike spreading bytes into String.fromCharCode, it has no call-stack
+    // limit on large images.
+    const data = bytes.toBase64();
     // MIME priority: AFP type field → URL extension → HTTP Content-Type → fallback
     let mimeType = inferMimeType(rendition.afpType, rendition.href);
     const ct = response.headers.get('content-type');

@@ -117,7 +117,9 @@ describe('afpGetMediaTool.handler', () => {
 
     expect(result.content).toHaveLength(2);
     expect(getText(result)).toContain('poster frame only');
-    expect(result.content[1]).toEqual(expect.objectContaining({ type: 'image', mimeType: 'image/jpeg' }));
+    // data: base64 réel des octets [1,2,3] — verrouille l'encodage (toBase64, portable
+    // navigateur/Bun/Workers), pas juste la présence d'un block image.
+    expect(result.content[1]).toEqual(expect.objectContaining({ type: 'image', mimeType: 'image/jpeg', data: 'AQID' }));
   });
 
   it('returns a warning when image fetch fails', async () => {
