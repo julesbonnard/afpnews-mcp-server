@@ -13,7 +13,7 @@ export const factcheckPrompt = {
       content: {
         type: 'text' as const,
         text: `Factcheck the following query: "${query}":
-1. Use afp_search_articles to find recent factchecks related to "${query}" (facets: { genreid: "afpattribute:FactcheckInvestigation" }, size: 10).
+1. Use afp_search_articles to find recent factchecks related to "${query}" (preset: "factcheck", size: 10).
 2. For each relevant factcheck, use afp_get_article to retrieve the full text.
 3. Summarize the findings, including: what is being claimed, what the factcheck verdict is, and the evidence provided.`,
       },

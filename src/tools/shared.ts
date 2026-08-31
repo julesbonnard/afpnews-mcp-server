@@ -22,7 +22,7 @@ export type OutputFormat = z.infer<typeof outputFormatEnum>;
 
 export const docFieldEnum = z.enum(ALL_DOC_FIELDS);
 
-const SEARCH_PRESET_VALUES = ['a-la-une', 'agenda', 'previsions', 'major-stories'] as const;
+const SEARCH_PRESET_VALUES = ['a-la-une', 'agenda', 'previsions', 'major-stories', 'factcheck'] as const;
 export const searchPresetEnum = z.enum(SEARCH_PRESET_VALUES);
 type SearchPreset = z.infer<typeof searchPresetEnum>;
 
@@ -90,6 +90,9 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
   'major-stories': {
     class: ['text'],
     genreid: ['afpattribute:Article'],
+  },
+  'factcheck': {
+    class: ['factcheck'],
   },
 };
 

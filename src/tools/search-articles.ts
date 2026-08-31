@@ -35,7 +35,7 @@ const reservedFacetKeys = new Set([
 ]);
 
 const inputSchema = z.object({
-  preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories.'),
+  preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories, factcheck.'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
   fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
   fullText: z.boolean().optional().describe('When true, returns the full article body (markdown only). Default is false. Presets override to true.'),
@@ -70,7 +70,7 @@ ${UNO_FORMAT_NOTE}
 ${PARAGRAPH_MARKER_NOTE}
 
 Args:
-  - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)
+  - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories, factcheck)
   - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
   - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
             Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created, wordCount.
