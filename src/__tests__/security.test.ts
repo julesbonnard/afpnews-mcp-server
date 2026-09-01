@@ -41,6 +41,16 @@ describe('isAllowedRedirectUri', () => {
     expect(isAllowedRedirectUri('https://evil.example.com/callback', ['https://claude.ai/api/mcp/auth_callback'])).toBe(false);
   });
 
+  it('allows any Copilot Studio / Power Platform consent redirect regardless of region or connector id', () => {
+    expect(isAllowedRedirectUri('https://global.consent.azure-apim.net/redirect/crb78-5fafp-20news-5fde0d5b4e730d8770', [])).toBe(true);
+    expect(isAllowedRedirectUri('https://europe-001.consent.azure-apim.net/redirect/some-other-connector', [])).toBe(true);
+  });
+
+  it('rejects a look-alike azure-apim host or path', () => {
+    expect(isAllowedRedirectUri('https://evil-consent.azure-apim.net.evil.com/redirect/x', [])).toBe(false);
+    expect(isAllowedRedirectUri('https://global.consent.azure-apim.net/not-redirect/x', [])).toBe(false);
+  });
+
   it('rejects an unparseable URI instead of throwing', () => {
     expect(isAllowedRedirectUri('not a url', [])).toBe(false);
   });

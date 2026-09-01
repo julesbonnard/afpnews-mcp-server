@@ -18,6 +18,12 @@ export function isAllowedRedirectUri(uri: string, allowedUris: string[]): boolea
     if (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
       return true;
     }
+    // Microsoft Copilot Studio / Power Platform: every custom connector gets its own
+    // region + connector-id redirect path under this Microsoft-owned host, so an exact
+    // allowlist entry can't be added ahead of time — trust the whole host+path shape instead.
+    if (url.protocol === 'https:' && url.hostname.endsWith('.consent.azure-apim.net') && url.pathname.startsWith('/redirect/')) {
+      return true;
+    }
     // Explicit https whitelist (exact match)
     return allowedUris.includes(uri);
   } catch {
