@@ -4,10 +4,16 @@ All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [3.0.0] — 2026-08-25
+## [3.0.0] — 2026-11-01
 
 ### Breaking
 
+- `afpnews-api` peer dependency moves from `^2.5.0` to `^3.0.0`. Tools now
+  consume the SDK's canonical `AfpDocument` model (`{ parse: true }`,
+  lenient for searches) instead of raw API documents.
+- `afpnews-mcp-server/definitions` no longer exports `TOOL_DEFINITIONS` /
+  `ToolDefinition`: it only carries prompt and resource metadata. Tools are
+  served by the MCP server itself (see `./server` below).
 - **HTTP transport is now stateless.** The previous session-map model
   (`mcp-session-id`, `MCP_SESSION_TTL`) is gone — every request now gets a
   fresh `McpServer` built straight from its own bearer token, so any number
@@ -30,6 +36,13 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- New `afpnews-mcp-server/server` export with `buildServer(apicore)`, to run
+  the real MCP server in-process (e.g. over `InMemoryTransport`) from an
+  existing `ApiCore`.
+- `wordCount` is available as an output field of `afp_search_articles` and
+  `afp_find_similar`.
+- `afp_get_media` gives a timecode per shot for videos and notes when only a
+  quicklook rendition is embedded.
 - Deployable as a **Cloudflare Worker** (`src/http/worker.ts`, `wrangler.toml`)
   with no KV/Durable Objects/other bindings — the OAuth authorization code
   and bearer tokens are all self-contained.
@@ -52,6 +65,11 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- OAuth accepts any Copilot Studio `redirect_uri`
+  (`*.consent.azure-apim.net/redirect/*`).
+- Prompts: wrong facet for fact-checks, `lang` → `langs` in search params.
+- Media embedding no longer relies on Node's `Buffer`
+  (`Uint8Array.toBase64()`), so it works on Workers and in browsers.
 - The JWE's registered `exp` claim was silently overwritten by
   `setExpirationTime()`, so decrypted tokens never carried the real AFP
   token expiry — moved to a dedicated `texp` claim.
