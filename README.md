@@ -76,6 +76,11 @@ Optional:
   - ChatGPT: `https://chatgpt.com/connector_platform_oauth_redirect`, `https://chatgpt.com/oauth/callback`, `https://chat.openai.com/oauth/callback`
   - Mistral (Le Chat): `https://callback.mistral.ai/v1/integrations_auth/oauth2_callback`
 
+  Microsoft Copilot Studio is handled separately (not via this list): every
+  custom connector gets its own `https://<region>.consent.azure-apim.net/redirect/<connector-id>`
+  URL, so `isAllowedRedirectUri()` trusts any `https://*.consent.azure-apim.net/redirect/*`
+  URL instead of requiring an exact match per connector.
+
   Add others as you connect new clients — the exact `redirect_uri` shows up in
   the failed `/oauth/authorize` request when a client isn't allowlisted yet.
 

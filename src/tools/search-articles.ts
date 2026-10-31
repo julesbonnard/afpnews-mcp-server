@@ -6,17 +6,20 @@ import {
   toolError,
   buildPaginationLine,
   formatDocumentOutput,
+  toApiFields,
 } from '../utils/format.js';
-import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/types.js';
+import { DEFAULT_SEARCH_SIZE, DEFAULT_OUTPUT_FIELDS } from '../utils/config.js';
+import type { DocField } from '../utils/types.js';
 import {
   SEARCH_PRESETS,
-  GENRE_EXCLUSIONS,
+  AGENDA_GENRE_EXCLUSIONS,
   formatErrorMessage,
   searchPresetEnum,
   outputFormatEnum,
   docFieldEnum,
   facetParamValueSchema,
   UNO_FORMAT_NOTE,
+  PARAGRAPH_MARKER_NOTE,
 } from './shared.js';
 
 const reservedFacetKeys = new Set([
@@ -32,7 +35,7 @@ const reservedFacetKeys = new Set([
 ]);
 
 const inputSchema = z.object({
-  preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories.'),
+  preset: searchPresetEnum.optional().describe('Optional preset that applies predefined AFP filters. Available presets: a-la-une, agenda, previsions, major-stories, factcheck.'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
   fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
   fullText: z.boolean().optional().describe('When true, returns the full article body (markdown only). Default is false. Presets override to true.'),
@@ -45,7 +48,7 @@ const inputSchema = z.object({
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedFacetKeys.has(key)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['facets', key],
         message: `Facet key "${key}" is reserved and must be provided at top-level.`,
       });
@@ -64,11 +67,13 @@ Prefer this tool over afp_search_media unless the user explicitly asks for photo
 
 ${UNO_FORMAT_NOTE}
 
+${PARAGRAPH_MARKER_NOTE}
+
 Args:
-  - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories)
+  - preset: Optional predefined filter set (a-la-une, agenda, previsions, major-stories, factcheck)
   - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
   - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
-            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created.
+            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created, wordCount.
   - fullText: Return full article body (true) or excerpt only (false, default). Only applies to markdown. Presets override to true.
   - query: Search keywords (e.g. 'climate change')
   - size: Number of results (default 10, max 1000)
@@ -101,7 +106,7 @@ Examples:
         class: ['text'],
         provider: ['afp'],
         langs: ['fr'],
-        genreid: GENRE_EXCLUSIONS,
+        genreid: AGENDA_GENRE_EXCLUSIONS,
         ...(facets ?? {}),
       };
 
@@ -118,12 +123,12 @@ Examples:
       }
       const effectiveFullText = preset ? true : fullText;
 
-      const outputFields: string[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
+      const outputFields: DocField[] = fields ?? [...DEFAULT_OUTPUT_FIELDS];
       const apiFields = format === 'markdown'
         ? [...MARKDOWN_API_FIELDS]
-        : [...new Set(outputFields)];
+        : toApiFields(outputFields);
 
-      const { documents, count } = await apicore.search(request, apiFields);
+      const { documents, count } = await apicore.search(request, apiFields, { parse: true, lenient: true });
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }

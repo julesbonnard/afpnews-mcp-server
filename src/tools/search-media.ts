@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toApiFields } from 'afpnews-api';
 import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import { textContent, toolError, buildPaginationLine } from '../utils/format.js';
 import {
@@ -6,7 +7,7 @@ import {
   formatMediaDocument,
   normalizeMediaDocument,
 } from '../utils/format-media.js';
-import { DEFAULT_SEARCH_SIZE } from '../utils/types.js';
+import { DEFAULT_SEARCH_SIZE, EMBED_MAX_DOCS } from '../utils/config.js';
 import type { AFPMediaDocument, AnyContent, MediaRendition } from '../utils/types.js';
 import { selectRenditionForEmbed, isSvgRendition, embedRendition } from '../utils/embed-media.js';
 import {
@@ -15,10 +16,6 @@ import {
   formatErrorMessage,
   facetParamValueSchema,
 } from './shared.js';
-
-// Fetching + base64-encoding images is costly: cap how many results get embedded per call,
-// regardless of the requested `size` (see handler: `size` itself is clamped when embed is true).
-export const EMBED_MAX_DOCS = 5;
 
 async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent[]> {
   const content: AnyContent[] = [];
@@ -45,11 +42,12 @@ async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent
 
 const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sortOrder', 'offset', 'facets']);
 
-const MEDIA_API_FIELDS = [
-  'uno', 'title', 'caption', 'creditLine', 'creator',
-  'country', 'city', 'published', 'urgency', 'class',
-  'aspectRatios', 'advisory', 'bagItem',
-] as const;
+// Le socle requis par parseDocument() (class, urgency, created, ...) est injecté
+// automatiquement par toApiFields() (SDK) — pas besoin de le lister ici.
+const MEDIA_API_FIELDS = toApiFields([
+  'title', 'caption', 'creditLine', 'creator',
+  'country', 'city', 'aspectRatios', 'advisory', 'medias',
+]);
 
 const inputSchema = z.object({
   class: mediaClassEnum.optional().describe("Media class filter: 'picture' (photos), 'video', 'graphic' (infographics), or 'videography' (motion design). Omit to search all media types."),
@@ -68,7 +66,7 @@ const inputSchema = z.object({
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedMediaFacetKeys.has(key)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['facets', key],
         message: `Facet key "${key}" is reserved and must be provided at top-level.`,
       });
@@ -146,13 +144,13 @@ Examples:
         ...(facets ?? {}),
       };
 
-      const { documents: rawDocs, count } = await apicore.search(request, [...MEDIA_API_FIELDS]);
+      const { documents, count } = await apicore.search(request, [...MEDIA_API_FIELDS], { parse: true, lenient: true });
 
       if (count === 0) {
         return { content: [textContent('No results found.')] };
       }
 
-      const docs = rawDocs.map(normalizeMediaDocument);
+      const docs = documents.map(normalizeMediaDocument);
       const currentOffset = offset ?? 0;
 
       if (embed) {

@@ -1,17 +1,18 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { parseDocument } from 'afpnews-api';
 import { McpServer } from '@modelcontextprotocol/server';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { registerTools } from '../tools/index.js';
-import { registerResources } from '../resources/index.js';
-import { registerPrompts } from '../prompts/index.js';
+import { registerTools } from '../tools/register.js';
+import { registerResources } from '../resources/register.js';
+import { registerPrompts } from '../prompts/register.js';
 import type { ServerContext } from '../mcp-server.js';
-import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs } from './fixtures.js';
+import { FIXTURE_DOC, FIXTURE_VIDEO_DOC, makeDocs, parseFixtures } from './fixtures.js';
 
 function createMockApicore() {
   return {
-    search: mock().mockResolvedValue({ documents: makeDocs(3), count: 3 }),
+    search: mock().mockResolvedValue({ documents: parseFixtures(makeDocs(3)), count: 3 }),
     get: mock().mockResolvedValue(makeDocs(1)[0]),
-    mlt: mock().mockResolvedValue({ documents: makeDocs(2), count: 2 }),
+    mlt: mock().mockResolvedValue({ documents: parseFixtures(makeDocs(2)), count: 2 }),
     list: mock().mockResolvedValue({ keywords: [{ name: 'economy', count: 42 }] }),
   };
 }
@@ -28,6 +29,13 @@ function makeLargeDocs(count: number) {
     lang: 'fr',
     genre: 'news',
     news: [`Paragraph ${i + 1} ${'B'.repeat(700)}`],
+    // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
+    'class': 'text',
+    urgency: 4,
+    created: '2026-02-14T09:00:00Z',
+    revision: 1,
+    provider: 'AFP',
+    status: 'Usable',
   }));
 }
 
@@ -80,24 +88,22 @@ describe('MCP integration', () => {
       expect(msg.text).toBe('No results found.');
     });
 
-    it('returns excerpt by default (no fullText)', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
-      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
-      // pagination line + 1 document
-      const msg = result.content![1] as { type: string; text: string };
-      expect(msg.text).toContain('Second paragraph with more details.');
-      expect(msg.text).not.toContain('Third paragraph continues.');
-    });
+    it('threads the fullText argument through to formatDocument (excerpt by default, full text when set)', async () => {
+      // The truncation logic itself is unit-tested against formatDocument() directly in
+      // format.test.ts — this only proves the fullText tool argument actually reaches it.
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
+      const excerptResult = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
+      const excerptMsg = excerptResult.content![1] as { type: string; text: string };
+      expect(excerptMsg.text).not.toContain('Fifth paragraph is extra content.');
 
-    it('returns full text when fullText=true', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
-      const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', fullText: true } });
-      const msg = result.content![1] as { type: string; text: string };
-      expect(msg.text).toContain('Fifth paragraph is extra content.');
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
+      const fullResult = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', fullText: true } });
+      const fullMsg = fullResult.content![1] as { type: string; text: string };
+      expect(fullMsg.text).toContain('Fifth paragraph is extra content.');
     });
 
     it('preset a-la-une applies filters and defaults to full text', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: [FIXTURE_DOC], count: 1 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures([FIXTURE_DOC]), count: 1 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { preset: 'a-la-une' } });
       const msg = result.content![1] as { type: string; text: string };
       expect(msg.text).toContain('Fifth paragraph is extra content.');
@@ -148,7 +154,7 @@ describe('MCP integration', () => {
     });
 
     it('shows pagination info when there are more results', async () => {
-      apicore.search.mockResolvedValueOnce({ documents: makeDocs(3), count: 10 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures(makeDocs(3)), count: 10 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test' } });
       const pagination = result.content![0] as { type: string; text: string };
       expect(pagination.text).toContain('Showing 3 of 10 results');
@@ -201,7 +207,7 @@ describe('MCP integration', () => {
 
     it('truncates json when exceeding character limit', async () => {
       const largeDocs = makeLargeDocs(400);
-      apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 400 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures(largeDocs), count: 400 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'json' } });
       const parsed = JSON.parse(getText(result));
       expect(parsed.truncated).toBe(true);
@@ -212,7 +218,7 @@ describe('MCP integration', () => {
 
     it('truncates csv when exceeding character limit', async () => {
       const largeDocs = makeLargeDocs(800);
-      apicore.search.mockResolvedValueOnce({ documents: largeDocs, count: 800 });
+      apicore.search.mockResolvedValueOnce({ documents: parseFixtures(largeDocs), count: 800 });
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv' } });
       const lines = getText(result).split('\n');
       // header + fewer than 800 data rows
@@ -232,7 +238,7 @@ describe('MCP integration', () => {
 
   describe('afp_get_article tool', () => {
     it('returns formatted full article with metadata rows and body', async () => {
-      apicore.get.mockResolvedValueOnce(FIXTURE_DOC);
+      apicore.get.mockResolvedValueOnce(parseDocument(FIXTURE_DOC));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-001' } });
       expect(result.content).toHaveLength(1);
       const text = getText(result);
@@ -248,20 +254,25 @@ describe('MCP integration', () => {
     });
 
     it('does not include missing optional fields', async () => {
-      apicore.get.mockResolvedValueOnce({ uno: 'X', headline: 'H', lang: 'fr', genre: 'news', published: '2026-01-01T00:00:00Z', news: ['body'] });
+      apicore.get.mockResolvedValueOnce(parseDocument({
+        uno: 'X', headline: 'H', lang: 'fr', genre: 'news', published: '2026-01-01T00:00:00Z', news: ['body'],
+        // Requis par le modèle canonique afpnews-api (AfpDocument) — parseDocument() les exige tous.
+        'class': 'text', urgency: 4, created: '2026-01-01T00:00:00Z', revision: 1, provider: 'AFP', status: 'Usable',
+      }));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'X' } });
       const text = getText(result);
-      expect(text).not.toContain('**Status:**');
+      expect(text).not.toContain('**Advisory:**');
       expect(text).not.toContain('**Country:**');
     });
 
-    it('renders a timecoded shot list body for video documents', async () => {
-      apicore.get.mockResolvedValueOnce(FIXTURE_VIDEO_DOC);
+    it('routes a video document through the shot-list rendering path', async () => {
+      // The shot-list content itself (timecodes, citations) is unit-tested against
+      // formatFullArticle() directly in format.test.ts — this only proves the MCP tool wiring
+      // reaches that path for a video document.
+      apicore.get.mockResolvedValueOnce(parseDocument(FIXTURE_VIDEO_DOC));
       const result = await client.callTool({ name: 'afp_get_article', arguments: { uno: 'AFP-TEST-VID-001' } });
       const text = getText(result);
       expect(text).toContain('## Shot list');
-      expect(text).toContain('1. [00:00-00:12] Vue aérienne de la ville');
-      expect(text).toContain('"Tout a commencé très vite"');
     });
 
     it('returns the raw document as json when format=json', async () => {
@@ -441,6 +452,16 @@ describe('MCP integration', () => {
       const content = result.messages[0].content as { type: string; text: string };
       expect(content.text).toContain('afp_search_articles');
       expect(content.text).toContain('afp_find_similar');
+      expect(content.text).toContain('afp_get_article');
+    });
+
+    it('factcheck returns user message with the query and references the right tools', async () => {
+      const result = await client.getPrompt({ name: 'factcheck', arguments: { query: 'climate change' } });
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].role).toBe('user');
+      const content = result.messages[0].content as { type: string; text: string };
+      expect(content.text).toContain('climate change');
+      expect(content.text).toContain('afp_search_articles');
       expect(content.text).toContain('afp_get_article');
     });
   });

@@ -15,7 +15,7 @@ export const dailyBriefingPrompt = {
         role: 'user' as const,
         content: {
           type: 'text' as const,
-          text: `Use the afp_search_articles tool to find today's most important news (facets: { dateFrom: "${today}", lang: ["${l}"] }, size: 15, sortOrder: "desc"). Then write a concise daily briefing summarizing the key stories, grouped by theme.`,
+          text: `Use the afp_search_articles tool to find today's most important news (facets: { dateFrom: "${today}", langs: ["${l}"] }, size: 15, sortOrder: "desc"). Then write a concise daily briefing summarizing the key stories, grouped by theme.`,
         },
       }],
     };

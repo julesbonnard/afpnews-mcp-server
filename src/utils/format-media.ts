@@ -1,5 +1,6 @@
+import type { AfpDocument, AfpMediaRendition } from 'afpnews-api';
 import type { AFPMediaDocument, MediaRenditions, MediaRendition, TextContent } from './types.js';
-import { textContent, truncateToLimit, truncateContentItems, truncationHint } from './format.js';
+import { textContent, truncateToLimit, truncateContentItems, truncationHint, escapeCsvValue } from './format.js';
 
 // Mapping role AFP → clé normalisée (utilise m.role, pas m.rendition)
 // Preview est prioritaire sur Preview_B/Preview_W (premier match gagne)
@@ -14,22 +15,19 @@ export const MEDIA_RENDITION_ROLE_MAP: Record<string, keyof MediaRenditions> = {
   'HighDef':    'highdef',
 };
 
-export function extractRenditions(bagItem: unknown): MediaRenditions {
-  if (!Array.isArray(bagItem) || bagItem.length === 0) return {};
-  const first = bagItem[0] as Record<string, unknown> | undefined;
-  const medias = (Array.isArray(first?.medias) ? first.medias : []) as Record<string, unknown>[];
+export function extractRenditions(renditions: readonly AfpMediaRendition[] = []): MediaRenditions {
   const result: MediaRenditions = {};
 
-  for (const m of medias) {
-    const key = MEDIA_RENDITION_ROLE_MAP[m.role as string];
+  for (const m of renditions) {
+    const key = MEDIA_RENDITION_ROLE_MAP[m.role];
     if (!key) continue;
     if (result[key]) continue; // ne pas écraser (Preview prioritaire sur Preview_B/W)
     result[key] = {
-      href: m.href as string,
-      width: m.width as number,
-      height: m.height as number,
-      sizeInBytes: m.sizeInBytes as number | undefined,
-      afpType: m.type as string | undefined,
+      href: m.href,
+      width: m.width,
+      height: m.height,
+      sizeInBytes: m.sizeInBytes,
+      afpType: m.type,
     } satisfies MediaRendition;
   }
 
@@ -75,22 +73,22 @@ export function formatMediaDocument(doc: Partial<AFPMediaDocument> & { uno: stri
   return textContent(lines.join('\n').trimEnd());
 }
 
-export function normalizeMediaDocument(raw: unknown): AFPMediaDocument {
-  const d = raw as Record<string, unknown>;
+/** Adapte l'AfpDocument canonique du SDK à la sortie publique (json/csv/markdown) de ce tool. */
+export function normalizeMediaDocument(doc: AfpDocument): AFPMediaDocument {
   return {
-    uno: d.uno as string,
-    title: d.title as string | undefined,
-    caption: Array.isArray(d.caption) ? d.caption[0] as string : d.caption as string | undefined,
-    creditLine: d.creditLine as string | undefined,
-    creator: d.creator as string | undefined,
-    country: d.country as string | undefined,
-    city: d.city as string | undefined,
-    published: d.published as string | undefined,
-    urgency: d.urgency as number | undefined,
-    class: d.class as string | undefined,
-    aspectRatios: d.aspectRatios as string[] | undefined,
-    advisory: d.advisory as string | undefined,
-    renditions: extractRenditions(d.bagItem ?? []),
+    uno: doc.uno,
+    title: doc.title,
+    caption: doc.caption,
+    creditLine: doc.creditLine,
+    creator: doc.creator,
+    country: doc.country.name ?? doc.country.id,
+    city: doc.city,
+    published: doc.published.toISOString(),
+    urgency: doc.urgency,
+    class: doc.class,
+    aspectRatios: doc.aspectRatios,
+    advisory: doc.advisory,
+    renditions: extractRenditions(doc.medias[0]?.renditions),
   };
 }
 
@@ -113,19 +111,14 @@ export function formatMediaDocumentsAsJson(
 
 export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
   const header = 'uno,title,caption,creditLine,published,class,thumbnail_href';
-  const escape = (v: unknown) => {
-    const str = String(v ?? '');
-    if (/[",\n\r]/.test(str)) return `"${str.replaceAll('"', '""')}"`;
-    return str;
-  };
   const rows = docs.map((d) => [
-    escape(d.uno),
-    escape(d.title),
-    escape(d.caption),
-    escape(d.creditLine),
-    escape(d.published),
-    escape(d.class),
-    escape(d.renditions.thumbnail?.href),
+    escapeCsvValue(d.uno),
+    escapeCsvValue(d.title),
+    escapeCsvValue(d.caption),
+    escapeCsvValue(d.creditLine),
+    escapeCsvValue(d.published),
+    escapeCsvValue(d.class),
+    escapeCsvValue(d.renditions.thumbnail?.href),
   ].join(','));
 
   const { text, count, truncated, remaining } = truncateToLimit(

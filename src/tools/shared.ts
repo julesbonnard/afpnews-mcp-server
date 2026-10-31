@@ -1,5 +1,8 @@
 import { z } from 'zod';
+import { AGENDA_GENRE_EXCLUSIONS } from 'afpnews-api';
 import { ALL_DOC_FIELDS } from '../utils/types.js';
+
+export { AGENDA_GENRE_EXCLUSIONS };
 
 // UNO format: newsml.afp.com.20260222T090659Z.doc-98hu39e
 //   - timestamp: 20260222T090659Z → 2026-02-22 09:06:59 UTC
@@ -10,12 +13,16 @@ export const UNO_FORMAT_NOTE = `Note on the UNO identifier (e.g. newsml.afp.com.
   - Short ID (afpshortid): the segment after "doc-", e.g. 98hu39e
   Both are embedded in the UNO — request afpshortid or published as explicit fields only if needed.`;
 
+// Markdown output prefixes each paragraph with a `[¶n]` marker (1-based) — purely technical,
+// never reproduce it when quoting or answering. It matches the AFP Deck's own `?p=n` convention.
+export const PARAGRAPH_MARKER_NOTE = 'Note on paragraph markers: each paragraph is prefixed with `[¶n]` (1-based) — a technical marker only, never reproduce it in a quote or answer.';
+
 export const outputFormatEnum = z.enum(['markdown', 'json', 'csv']);
 export type OutputFormat = z.infer<typeof outputFormatEnum>;
 
 export const docFieldEnum = z.enum(ALL_DOC_FIELDS);
 
-const SEARCH_PRESET_VALUES = ['a-la-une', 'agenda', 'previsions', 'major-stories'] as const;
+const SEARCH_PRESET_VALUES = ['a-la-une', 'agenda', 'previsions', 'major-stories', 'factcheck'] as const;
 export const searchPresetEnum = z.enum(SEARCH_PRESET_VALUES);
 type SearchPreset = z.infer<typeof searchPresetEnum>;
 
@@ -52,24 +59,6 @@ export const READ_ONLY_ANNOTATIONS = {
   openWorldHint: true,
 } as const;
 
-export interface FacetResult {
-  name: string;
-  count: number;
-}
-
-export const GENRE_EXCLUSIONS = {
-  exclude: [
-    'afpgenre:Agenda',
-    'afpattribute:Agenda',
-    'afpattribute:Program',
-    'afpattribute:TextProgram',
-    'afpattribute:AdvisoryUpdate',
-    'afpattribute:Advice',
-    'afpattribute:SpecialAnnouncement',
-    'afpattribute:PictureProgram',
-  ],
-};
-
 interface PresetOverrides {
   class?: string[];
   langs?: string[];
@@ -86,7 +75,7 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
     slug: ['afp', 'actualites'],
     dateFrom: 'now-1d',
     size: 1,
-    genreid: GENRE_EXCLUSIONS,
+    genreid: AGENDA_GENRE_EXCLUSIONS,
   },
   'agenda': {
     class: ['text'],
@@ -101,6 +90,9 @@ export const SEARCH_PRESETS: Record<SearchPreset, PresetOverrides> = {
   'major-stories': {
     class: ['text'],
     genreid: ['afpattribute:Article'],
+  },
+  'factcheck': {
+    class: ['factcheck'],
   },
 };
 

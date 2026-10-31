@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { inferMimeType, selectRenditionForEmbed } from '../tools/get-media.js';
+import { inferMimeType, selectRenditionForEmbed } from '../utils/embed-media.js';
 import type { MediaRenditions } from '../utils/types.js';
 
 describe('inferMimeType', () => {

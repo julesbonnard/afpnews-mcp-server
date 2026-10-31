@@ -2,7 +2,6 @@ import { z } from 'zod';
 import type { ApiCore, SearchQueryParams } from 'afpnews-api';
 import { escapeCsvValue, textContent, toolError, truncateToLimit, truncationHint } from '../utils/format.js';
 import {
-  type FacetResult,
   facetParamValueSchema,
   formatErrorMessage,
   langEnum,
@@ -23,6 +22,13 @@ const inputSchema = z.object({
 });
 
 type ListFacetsInput = z.infer<typeof inputSchema>;
+
+function truncatedContent<T>(items: T[], serialize: (slice: T[]) => string) {
+  const { text, truncated, remaining } = truncateToLimit(items, serialize);
+  const content = [textContent(text)];
+  if (truncated) content.push(textContent(truncationHint(remaining)));
+  return { content };
+}
 
 export const afpListFacetsTool = {
   name: 'afp_list_facets',
@@ -78,41 +84,28 @@ Examples:
       };
 
       const { keywords } = await apicore.list(resolvedFacet, params, 1);
-      const results: FacetResult[] = keywords.map(k => ({ name: k.name ?? '', count: k.count }));
+      // apicore.list() renvoie déjà des AfpFacetValue[] typés côté SDK (zod-validé) —
+      // seule la normalisation name ?? '' reste nécessaire pour un rendu csv/json propre.
+      const results = keywords.map(k => ({ name: k.name ?? '', count: k.count }));
 
       if (results.length === 0) {
         return { content: [textContent(`No facet values found for "${resolvedFacet}".`)] };
       }
 
       if (format === 'json') {
-        const { text, truncated, remaining } = truncateToLimit(
-          results,
-          (slice) => JSON.stringify(slice, null, 2),
-        );
-        const content = [textContent(text)];
-        if (truncated) content.push(textContent(truncationHint(remaining)));
-        return { content };
+        return truncatedContent(results, (slice) => JSON.stringify(slice, null, 2));
       }
 
       if (format === 'csv') {
         const rows = results.map(r => `${escapeCsvValue(r.name)},${r.count}`);
-        const { text, truncated, remaining } = truncateToLimit(
-          rows,
-          (slice) => ['name,count', ...slice].join('\n'),
-        );
-        const content = [textContent(text)];
-        if (truncated) content.push(textContent(truncationHint(remaining)));
-        return { content };
+        return truncatedContent(rows, (slice) => ['name,count', ...slice].join('\n'));
       }
 
       const heading = isTrendingTopics ? 'Trending Topics' : `Facet: ${resolvedFacet}`;
-      const { text, truncated, remaining } = truncateToLimit(
+      return truncatedContent(
         results,
         (slice) => `## ${heading}\n\n${slice.map((item) => `- **${item.name}** — ${item.count} articles`).join('\n')}`,
       );
-      const content = [textContent(text)];
-      if (truncated) content.push(textContent(truncationHint(remaining)));
-      return { content };
     } catch (error) {
       return toolError(formatErrorMessage('listing facet values', error, "Check that the facet name is valid (e.g. 'slug', 'genre', 'country')."));
     }

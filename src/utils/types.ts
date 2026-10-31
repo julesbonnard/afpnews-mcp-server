@@ -1,23 +1,3 @@
-export interface AFPDocument {
-  afpshortid?: string;
-  uno: string;
-  headline: string;
-  published: string;
-  lang: string;
-  genre: string;
-  news: string[];
-  status?: string;
-  signal?: string;
-  advisory?: string;
-  country?: string;
-  city?: string;
-  slug?: string[];
-  event?: string[];
-  'class'?: string;
-  revision?: number;
-  created?: string;
-}
-
 export interface TextContent {
   type: 'text';
   text: string;
@@ -65,6 +45,7 @@ export interface ImageContent {
 export type AnyContent = TextContent | ImageContent;
 
 export interface ToolSuccess {
+  isError?: false;
   content: AnyContent[];
 }
 
@@ -75,15 +56,10 @@ export interface ToolError {
 
 export type ToolResult = ToolSuccess | ToolError;
 
-export const EXCERPT_PARAGRAPH_COUNT = 2;
-export const CHARACTER_LIMIT = 100_000;
-export const DEFAULT_SEARCH_SIZE = 10;
-
 export const ALL_DOC_FIELDS = [
   'afpshortid', 'uno', 'headline', 'published', 'lang', 'genre',
   'status', 'signal', 'advisory', 'country', 'city', 'slug', 'event', 'class', 'revision', 'created',
+  'wordCount',
 ] as const;
 
 export type DocField = typeof ALL_DOC_FIELDS[number];
-
-export const DEFAULT_OUTPUT_FIELDS: DocField[] = ['uno', 'headline', 'lang', 'genre'];
