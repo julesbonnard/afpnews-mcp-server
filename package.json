@@ -25,22 +25,22 @@
   "license": "ISC",
   "packageManager": "bun@1.4.2",
   "dependencies": {
-    "@modelcontextprotocol/hono": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
-    "hono": "^4.13.8",
-    "jose": "^6.2.12"
+    "@modelcontextprotocol/hono": "^2.0.2",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "hono": "^4.13.14",
+    "jose": "^6.2.14"
   },
   "peerDependencies": {
     "afpnews-api": "^3.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@types/bun": "^1.4.2",
-    "@types/node": "^26.6.2",
-    "afpnews-api": "^3.0.0",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
+    "afpnews-api": "^3.4.0",
     "typescript": "^7.0.2",
-    "wrangler": "^4.136.1",
-    "zod": "^4.6.5"
+    "wrangler": "^4.156.0",
+    "zod": "^4.6.7"
   }
 }
