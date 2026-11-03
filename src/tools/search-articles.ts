@@ -21,6 +21,7 @@ import {
   UNO_FORMAT_NOTE,
   PARAGRAPH_MARKER_NOTE,
   REGION_FACET_NOTE,
+  AFP_PROVIDERS,
 } from './shared.js';
 
 const reservedFacetKeys = new Set([
@@ -82,7 +83,7 @@ Args:
   - offset: Pagination offset (number of results to skip)
   - facets: All facet filters as key/value pairs (e.g. { langs: ['en'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 }).
            ${REGION_FACET_NOTE}
-           Defaults: class=text, provider=afp, langs=fr. Override langs for other languages (e.g. { langs: ['en'] } or { langs: ['fr', 'en'] }).
+           Defaults: class=text, provider=AFP (afp and its Arabic service أ ف ب), langs=fr. Override langs for other languages (e.g. { langs: ['en'] } or { langs: ['fr', 'en'] }).
 
 Pagination:
   Use \`offset\` to paginate through results (e.g. offset=10 to skip the first 10).
@@ -106,7 +107,7 @@ Examples:
     try {
       const facetFilters = {
         class: ['text'],
-        provider: ['afp'],
+        provider: AFP_PROVIDERS,
         langs: ['fr'],
         genreid: AGENDA_GENRE_EXCLUSIONS,
         ...(facets ?? {}),

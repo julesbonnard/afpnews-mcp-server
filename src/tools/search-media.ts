@@ -16,6 +16,7 @@ import {
   formatErrorMessage,
   facetParamValueSchema,
   REGION_FACET_NOTE,
+  AFP_PROVIDERS,
 } from './shared.js';
 
 async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent[]> {
@@ -99,7 +100,7 @@ Args:
   - format: markdown (default, with inline thumbnails), json (structured with rendition URLs), csv
   - facets: Additional AFP filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }).
            ${REGION_FACET_NOTE}
-           Defaults: provider=afp. Override provider only when partner media is explicitly needed.
+           Defaults: provider=AFP (afp and its Arabic service أ ف ب). Override provider only when partner media is explicitly needed.
   - embed: When true, fetches and embeds the lightest image for each result as base64 (Claude vision analysis) —
            useful to visually compare or verify a handful of candidate photos before picking one.
            Requires format: "markdown". Size is capped to ${EMBED_MAX_DOCS} regardless of the requested value.
@@ -142,7 +143,7 @@ Examples:
         sortOrder,
         startAt: offset,
         class: classFilter,
-        provider: ['afp'],
+        provider: AFP_PROVIDERS,
         ...(facets ?? {}),
       };
 

@@ -19,6 +19,9 @@ export const PARAGRAPH_MARKER_NOTE = 'Note on paragraph markers: each paragraph 
 
 export const REGION_FACET_NOTE = `region filters on the countries of AFP regions (${Object.keys(AFP_REGIONS).join(', ')}), e.g. { region: ['africa'] } or { region: { exclude: ['europe'] } }.`;
 
+// La production en arabe de l'AFP porte le fournisseur « أ ف ب »
+export const AFP_PROVIDERS = ['afp', 'أ ف ب'];
+
 export const outputFormatEnum = z.enum(['markdown', 'json', 'csv']);
 export type OutputFormat = z.infer<typeof outputFormatEnum>;
 

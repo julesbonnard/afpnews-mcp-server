@@ -14,7 +14,7 @@ describe('tool defaults', () => {
 
     const [request] = apicore.search.mock.calls[0]!;
     expect(request.class).toEqual(['text']);
-    expect(request.provider).toEqual(['afp']);
+    expect(request.provider).toEqual(['afp', 'أ ف ب']);
     expect(request.langs).toEqual(['fr']);
   });
 
@@ -38,7 +38,7 @@ describe('tool defaults', () => {
 
     const [request] = apicore.search.mock.calls[0]!;
     expect(request.class).toEqual(['picture']);
-    expect(request.provider).toEqual(['afp']);
+    expect(request.provider).toEqual(['afp', 'أ ف ب']);
   });
 
   // afp_list_facets' defaults are already asserted in full (class/provider/langs/size) by
