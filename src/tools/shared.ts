@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AGENDA_GENRE_EXCLUSIONS } from 'afpnews-api';
+import { AFP_REGIONS, AGENDA_GENRE_EXCLUSIONS } from 'afpnews-api';
 import { ALL_DOC_FIELDS } from '../utils/types.js';
 
 export { AGENDA_GENRE_EXCLUSIONS };
@@ -16,6 +16,8 @@ export const UNO_FORMAT_NOTE = `Note on the UNO identifier (e.g. newsml.afp.com.
 // Markdown output prefixes each paragraph with a `[¶n]` marker (1-based) — purely technical,
 // never reproduce it when quoting or answering. It matches the AFP Deck's own `?p=n` convention.
 export const PARAGRAPH_MARKER_NOTE = 'Note on paragraph markers: each paragraph is prefixed with `[¶n]` (1-based) — a technical marker only, never reproduce it in a quote or answer.';
+
+export const REGION_FACET_NOTE = `region filters on the countries of AFP regions (${Object.keys(AFP_REGIONS).join(', ')}), e.g. { region: ['africa'] } or { region: { exclude: ['europe'] } }.`;
 
 export const outputFormatEnum = z.enum(['markdown', 'json', 'csv']);
 export type OutputFormat = z.infer<typeof outputFormatEnum>;
