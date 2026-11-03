@@ -17,7 +17,7 @@ describe('afpListFacetsTool', () => {
     await afpListFacetsTool.handler(apicore, { facet: 'slug', lang: 'en' });
 
     const [, params] = apicore.list.mock.calls[0]!;
-    expect(params).toEqual({ class: ['text'], provider: ['afp'], langs: ['en'], size: 10 });
+    expect(params).toEqual({ class: ['text'], provider: ['afp', 'أ ف ب'], langs: ['en'], size: 10 });
   });
 
   it('lists events with their id and name in a single request', async () => {
@@ -38,6 +38,26 @@ describe('afpListFacetsTool', () => {
     expect(result.content[0]!.text).toBe(
       "name,label,count\nafpevent:IZT27,Invasion russe de l'Ukraine,168\nafpevent:PRT40,Élections législatives,146",
     );
+  });
+
+  it('fetches more label rows than requested so merged event counts are complete', async () => {
+    const apicore = {
+      list: mock().mockResolvedValue({
+        keywords: [
+          { name: '#PRT40 : Israel votes in legislative elections', count: 1502 },
+          { name: '#IUQ01 : Yemen war', count: 925 },
+          { name: '#IUQ01 : Guerre du Yémen', count: 804 },
+          { name: '#PRT40 : Élections législatives en Israël', count: 254 },
+        ],
+      }),
+    };
+
+    const result = await afpListFacetsTool.handler(apicore, { facet: 'event', size: 1, format: 'json' });
+
+    expect(apicore.list.mock.calls[0]![1]).toMatchObject({ size: 5 });
+    expect(JSON.parse(result.content[0]!.text)).toEqual([
+      { name: 'afpevent:PRT40', label: 'Israel votes in legislative elections', count: 1756 },
+    ]);
   });
 
   it.each([

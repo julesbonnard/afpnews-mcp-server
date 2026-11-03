@@ -8,6 +8,7 @@ import {
   listPresetEnum,
   outputFormatEnum,
   REGION_FACET_NOTE,
+  AFP_PROVIDERS,
 } from './shared.js';
 
 const inputSchema = z.object({
@@ -19,7 +20,7 @@ const inputSchema = z.object({
   dateTo: z.string().optional().describe("End of the time window (e.g. 'now', 'now-1d', '2026-01-31')."),
   size: z.number().optional().describe('Number of facet values to return'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv.'),
-  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Additional facet filters passed to the AFP query (e.g. { country: ['usa'], genre: 'Papier général', urgency: 1 }). ${REGION_FACET_NOTE}`),
+  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Additional facet filters passed to the AFP query (e.g. { country: ['usa'], genre: 'Papier général', urgency: 1 }). Counts cover AFP text articles by default: pass class (e.g. { class: ['text', 'picture', 'video'] }) to include media. ${REGION_FACET_NOTE}`),
 });
 
 type ListFacetsInput = z.infer<typeof inputSchema>;
@@ -62,12 +63,13 @@ Args:
   - size: Number of facet values to return
   - format: Output format — markdown (default), json, or csv.
   - facets: Additional filters (country, region, genre, urgency, …). ${REGION_FACET_NOTE}
+           Defaults: class=text, provider=AFP (afp and its Arabic service أ ف ب). Override class to count media too (e.g. { class: ["text", "picture", "video"] }).
 
 Returns:
   - markdown: Formatted list with labels and article counts
   - json: Array of { name, count } objects
   - csv: name,count rows
-  - facet "event": each value also has its readable name (label) — name is the id to filter on (afpevent:ID), no need to resolve it with another tool
+  - facet "event": each value also has its readable name (label) — name is the id to filter on (afpevent:ID), no need to resolve it with another tool. Without lang, the label may be in another language than the answer: translate it
 
 Examples:
   - Trending topics in French: { preset: "trending-topics" }
@@ -94,7 +96,7 @@ Examples:
       const resolvedDateFrom = dateFrom ?? (isTrendingTopics ? 'now-1d' : undefined);
       const params: SearchQueryParams = {
         class: ['text'],
-        provider: ['afp'],
+        provider: AFP_PROVIDERS,
         size: resolvedSize,
         ...(resolvedLang ? { langs: [resolvedLang] } : {}),
         ...(query ? { query } : {}),
@@ -104,9 +106,12 @@ Examples:
       };
 
       const isEvent = resolvedFacet === 'event';
-      const { keywords } = await apicore.list(isEvent ? 'afpentity.event.keyword' : resolvedFacet, params, 1);
+      // Chaque libellé (langue, renommage) est une ligne : en demander plus pour que le regroupement par id ne tronque pas les comptes
+      const { keywords } = isEvent
+        ? await apicore.list('afpentity.event.keyword', { ...params, size: resolvedSize * 5 }, 1)
+        : await apicore.list(resolvedFacet, params, 1);
       const results: FacetResult[] = isEvent
-        ? eventResults(keywords)
+        ? eventResults(keywords).slice(0, resolvedSize)
         : keywords.map(k => ({ name: k.name ?? '', count: k.count }));
 
       if (results.length === 0) {

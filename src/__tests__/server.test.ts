@@ -362,7 +362,7 @@ describe('MCP integration', () => {
 
       const [facet, params] = apicore.list.mock.calls.at(-1)!;
       expect(facet).toBe('slug');
-      expect(params).toMatchObject({ langs: ['fr'], class: ['text'], provider: ['afp'], dateFrom: 'now-1d' });
+      expect(params).toMatchObject({ langs: ['fr'], class: ['text'], provider: ['afp', 'أ ف ب'], dateFrom: 'now-1d' });
     });
 
     it('forwards query and date window to the API', async () => {
