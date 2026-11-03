@@ -20,6 +20,7 @@ import {
   facetParamValueSchema,
   UNO_FORMAT_NOTE,
   PARAGRAPH_MARKER_NOTE,
+  REGION_FACET_NOTE,
 } from './shared.js';
 
 const reservedFacetKeys = new Set([
@@ -43,7 +44,7 @@ const inputSchema = z.object({
   size: z.number().optional().describe('Number of results to return (default 10, max 1000)'),
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   offset: z.number().optional().describe('Offset for pagination (number of results to skip)'),
-  facets: z.record(z.string(), facetParamValueSchema).optional().describe("Facet filters passed to the AFP query (e.g. { langs: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 })."),
+  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Facet filters passed to the AFP query (e.g. { langs: ['fr'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 }). ${REGION_FACET_NOTE}`),
 }).strict().superRefine((value, ctx) => {
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedFacetKeys.has(key)) {
@@ -80,6 +81,7 @@ Args:
   - sortOrder: 'asc' or 'desc' by date (default 'desc')
   - offset: Pagination offset (number of results to skip)
   - facets: All facet filters as key/value pairs (e.g. { langs: ['en'], dateFrom: '2026-01-01', dateTo: '2026-01-31', country: ['usa'], genre: 'Papier général', urgency: 1 }).
+           ${REGION_FACET_NOTE}
            Defaults: class=text, provider=afp, langs=fr. Override langs for other languages (e.g. { langs: ['en'] } or { langs: ['fr', 'en'] }).
 
 Pagination:

@@ -15,6 +15,7 @@ import {
   outputFormatEnum,
   formatErrorMessage,
   facetParamValueSchema,
+  REGION_FACET_NOTE,
 } from './shared.js';
 
 async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent[]> {
@@ -57,7 +58,7 @@ const inputSchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv'),
   facets: z.record(z.string(), facetParamValueSchema).optional().describe(
-    "Additional AFP facet filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' })"
+    `Additional AFP facet filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }). ${REGION_FACET_NOTE}`
   ),
   embed: z.boolean().optional().describe(
     `When true, fetches and embeds the lightest available image (quicklook, thumbnail poster frame for video) for each result as base64, for Claude vision analysis. Requires format: "markdown" (default). Size is capped to ${EMBED_MAX_DOCS} regardless of the requested value, since fetching/encoding images is costly. Default: false.`
@@ -97,6 +98,7 @@ Args:
   - sortOrder: 'asc' or 'desc' (default 'desc')
   - format: markdown (default, with inline thumbnails), json (structured with rendition URLs), csv
   - facets: Additional AFP filters (e.g. { langs: ['fr'], country: ['fra'], dateFrom: '2026-01-01' }).
+           ${REGION_FACET_NOTE}
            Defaults: provider=afp. Override provider only when partner media is explicitly needed.
   - embed: When true, fetches and embeds the lightest image for each result as base64 (Claude vision analysis) —
            useful to visually compare or verify a handful of candidate photos before picking one.
