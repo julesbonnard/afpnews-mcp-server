@@ -8,16 +8,13 @@ export { AGENDA_GENRE_EXCLUSIONS };
 //   - timestamp: 20260222T090659Z → 2026-02-22 09:06:59 UTC
 //   - afpshortid: the segment after "doc-" (e.g. 98hu39e)
 // Published date and afpshortid are encoded in the UNO — no need to fetch them as separate fields.
-export const UNO_FORMAT_NOTE = `Note on the UNO identifier (e.g. newsml.afp.com.20260222T090659Z.doc-98hu39e):
-  - Publication date: the timestamp segment, e.g. 20260222T090659Z → 2026-02-22 09:06:59 UTC
-  - Short ID (afpshortid): the segment after "doc-", e.g. 98hu39e
-  Both are embedded in the UNO — request afpshortid or published as explicit fields only if needed.`;
+export const UNO_FORMAT_NOTE = 'A UNO (newsml.afp.com.<timestamp>.doc-<afpshortid>) embeds the publication timestamp (UTC) and the short ID: request published or afpshortid only if needed.';
 
 // Markdown output prefixes each paragraph with a `[¶n]` marker (1-based) — purely technical,
-// never reproduce it when quoting or answering. It matches the AFP Deck's own `?p=n` convention.
-export const PARAGRAPH_MARKER_NOTE = 'Note on paragraph markers: each paragraph is prefixed with `[¶n]` (1-based) — a technical marker only, never reproduce it in a quote or answer.';
+// never reproduce it when quoting or answering.
+export const PARAGRAPH_MARKER_NOTE = 'Paragraphs are prefixed with a technical `[¶n]` marker (1-based): never reproduce it.';
 
-export const REGION_FACET_NOTE = `region filters on the countries of AFP regions (${Object.keys(AFP_REGIONS).join(', ')}), e.g. { region: ['africa'] } or { region: { exclude: ['europe'] } }.`;
+export const REGION_FACET_NOTE = `region filters on the countries of an AFP region (${Object.keys(AFP_REGIONS).join(', ')}); any facet accepts { exclude: [...] }.`;
 
 // La production en arabe de l'AFP porte le fournisseur « أ ف ب »
 export const AFP_PROVIDERS = ['afp', 'أ ف ب'];

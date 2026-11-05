@@ -47,7 +47,7 @@ export async function embedRendition(
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
     // Uint8Array.prototype.toBase64 (not Buffer/btoa+String.fromCharCode): this server also
-    // runs in-process inside a browser (afpnews-deck's in-memory MCP transport), where Buffer
+    // runs in-process inside a browser (in-memory MCP transport), where Buffer
     // doesn't exist — and unlike spreading bytes into String.fromCharCode, it has no call-stack
     // limit on large images.
     const data = bytes.toBase64();
