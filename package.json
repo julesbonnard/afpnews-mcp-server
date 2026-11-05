@@ -1,6 +1,6 @@
 {
   "name": "afpnews-mcp-server",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "description": "",
   "main": "src/index.ts",
   "type": "module",
@@ -27,8 +27,8 @@
   "dependencies": {
     "@modelcontextprotocol/hono": "^2.0.2",
     "@modelcontextprotocol/server": "^2.4.0",
-    "hono": "^4.13.14",
-    "jose": "^6.2.14"
+    "hono": "^4.13.16",
+    "jose": "^6.2.15"
   },
   "peerDependencies": {
     "afpnews-api": "^3.5.0",
@@ -40,7 +40,7 @@
     "@types/node": "^26.6.6",
     "afpnews-api": "^3.6.0",
     "typescript": "^7.0.2",
-    "wrangler": "^4.156.0",
+    "wrangler": "^4.157.0",
     "zod": "^4.6.7"
   }
 }

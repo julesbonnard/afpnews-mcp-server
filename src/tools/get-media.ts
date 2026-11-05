@@ -7,9 +7,9 @@ import { inferMimeType, selectRenditionForEmbed, isSvgRendition, embedRendition 
 import { renditionEnum, formatErrorMessage } from './shared.js';
 
 const inputSchema = z.object({
-  uno: z.string().describe('AFP document UNO identifier (e.g. newsml.afp.com.20260316T202634Z.doc-a3jc2qq)'),
-  embed: z.boolean().optional().describe('When true, fetches the image and returns it as base64 for Claude vision analysis. Default: false.'),
-  rendition: renditionEnum.optional().describe("Rendition size to embed: 'squared120' (~120px, lightest, square crop), 'quicklook' (~245px, lightest full-frame), 'thumbnail' (320px), 'mockup' (~512px), 'preview' (1200px, default), 'highdef' (~3400px)"),
+  uno: z.string().describe('AFP document UNO identifier'),
+  embed: z.boolean().optional().describe('Embed the image for vision. Default false.'),
+  rendition: renditionEnum.optional().describe("Rendition to embed (default quicklook ~245px; squared120 ~120px square crop, thumbnail 320px, mockup ~512px, preview 1200px, highdef ~3400px). Go higher only when detail is needed."),
 });
 
 type GetMediaInput = z.infer<typeof inputSchema>;
@@ -47,25 +47,11 @@ function formatFullMediaText(doc: AfpDocument, renditions: MediaRenditions, note
 export const afpGetMediaTool = {
   name: 'afp_get_media',
   title: 'Get AFP Media Document',
-  description: `Retrieve a complete AFP media document by UNO. Optionally embed the image as base64 for Claude vision analysis.
-
-Media classes: picture (photo), video, graphic (infographic/SVG), videography (video journalism).
-
-Args:
-  - uno: AFP document UNO (e.g. newsml.afp.com.20260316T202634Z.doc-a3jc2qq)
-  - embed: When true, fetches the image and returns it as a base64 MCP image block that Claude can see and analyse visually. Default: false.
-  - rendition: Size to embed — 'squared120' (~120px, square crop, lightest), 'quicklook' (~245px, lightest full-frame), 'thumbnail' (320px), 'mockup' (~512px), 'preview' (1200px, default), 'highdef' (~3400px).
-               Files > 5 MB are automatically downgraded to a lighter rendition.
-               Videos and videography always use thumbnail (poster frame). SVG graphics cannot be embedded.
-               When embed is true, prefer 'quicklook' unless you actually need higher resolution: the default ('preview', 1200px) embeds a much heavier base64 payload.
-
-Returns:
-  - Without embed: full metadata + all rendition URLs
-  - With embed: metadata + MCP image block (Claude can analyse the image)`,
+  description: `Retrieve an AFP media document (photo, video, graphic, videography) by UNO: metadata and all rendition URLs, optionally with the image embedded for vision. Files over 5 MB fall back to a lighter rendition; videos always embed their poster frame; SVG graphics cannot be embedded.`,
   inputSchema,
   handler: async (
     apicore: Pick<ApiCore, 'get'>,
-    { uno, embed = false, rendition: requestedRendition = 'preview' }: GetMediaInput,
+    { uno, embed = false, rendition: requestedRendition = 'quicklook' }: GetMediaInput,
   ) => {
     try {
       const doc = await apicore.get(uno, { parse: true });

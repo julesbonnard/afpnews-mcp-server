@@ -13,7 +13,7 @@ import {
 
 const inputSchema = z.object({
   uno: z.string().describe('The UNO of the reference article'),
-  lang: langEnum.describe("Language for results (e.g. 'en', 'fr')"),
+  lang: langEnum.describe("Language of the results"),
   size: z.number().optional().describe('Number of similar articles to return (default 10)'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article excerpt), json (structured, no body), csv (tabular, no body).'),
   fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
@@ -24,26 +24,9 @@ type FindSimilarInput = z.infer<typeof inputSchema>;
 export const afpFindSimilarTool = {
   name: 'afp_find_similar',
   title: 'Find Similar AFP Articles',
-  description: `Find AFP news articles similar to a given article (More Like This). Useful for exploring related coverage or finding follow-up stories.
+  description: `Find AFP articles similar to a given article (More Like This): related coverage, follow-ups.
 
-${UNO_FORMAT_NOTE}
-
-Args:
-  - uno: The UNO of the reference article to find similar content for
-  - lang: Language for results (e.g. 'en', 'fr')
-  - size: Number of similar articles to return (default 10)
-  - format: Output format — markdown (default), json, or csv. json/csv omit article body text.
-  - fields: Fields to include in json/csv output (default: uno, headline, lang, genre).
-            Available: uno, headline, lang, genre, afpshortid, published, status, signal, advisory, country, city, slug, class, event, revision, created, wordCount.
-
-Returns:
-  - markdown: Summary line + formatted article excerpts
-  - json: { total, documents: [...] } with selected fields
-  - csv: Header row + data rows with selected fields
-
-Examples:
-  - Find similar articles in French: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "fr" }
-  - Export similar as CSV: { uno: "newsml.afp.com.20260222T090659Z.doc-98hu39e", lang: "en", format: "csv", fields: ["uno", "headline"] }`,
+${UNO_FORMAT_NOTE}`,
   inputSchema,
   handler: async (apicore: Pick<ApiCore, 'mlt'>, { uno, lang, size, format = 'markdown', fields }: FindSimilarInput) => {
     try {

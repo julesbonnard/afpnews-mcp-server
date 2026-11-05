@@ -12,15 +12,15 @@ import {
 } from './shared.js';
 
 const inputSchema = z.object({
-  preset: listPresetEnum.optional().describe('Optional preset for list queries. Available preset: trending-topics.'),
-  facet: z.string().optional().describe("Facet to list (e.g. 'slug', 'genre', 'country', 'event', 'afpentity.person.keyword' for people cited, 'afpentity.organisation.keyword' for organisations cited). Required when no preset is used."),
-  lang: langEnum.optional().describe("Language filter (e.g. 'en', 'fr')"),
-  query: z.string().optional().describe("Keywords to scope the facet counts (e.g. 'climate change'). When set, counts reflect only articles matching the query."),
-  dateFrom: z.string().optional().describe("Start of the time window (e.g. 'now-1d', '2026-01-01'). Combine with dateTo for a bounded window (e.g. to compare two periods)."),
-  dateTo: z.string().optional().describe("End of the time window (e.g. 'now', 'now-1d', '2026-01-31')."),
+  preset: listPresetEnum.optional().describe('trending-topics: slug counts over the last 24h.'),
+  facet: z.string().optional().describe("Facet to list: slug, genre, country, event, afpentity.person.keyword, afpentity.organisation.keyword… Required without preset."),
+  lang: langEnum.optional().describe("Language filter"),
+  query: z.string().optional().describe("Keywords restricting the counted articles."),
+  dateFrom: z.string().optional().describe("Window start ('now-1d' or ISO date)."),
+  dateTo: z.string().optional().describe("Window end (same syntax)."),
   size: z.number().optional().describe('Number of facet values to return'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default), json, or csv.'),
-  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Additional facet filters passed to the AFP query (e.g. { country: ['usa'], genre: 'Papier général', urgency: 1 }). Counts cover AFP text articles by default: pass class (e.g. { class: ['text', 'picture', 'video'] }) to include media. ${REGION_FACET_NOTE}`),
+  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Additional facet filters (country, genre, urgency, class…). ${REGION_FACET_NOTE}`),
 });
 
 type ListFacetsInput = z.infer<typeof inputSchema>;
@@ -51,34 +51,9 @@ function truncatedContent<T>(items: T[], serialize: (slice: T[]) => string) {
 export const afpListFacetsTool = {
   name: 'afp_list_facets',
   title: 'List AFP Facet Values',
-  description: `List facet values and their article counts. Use this to discover available topics, genres, or countries, get trending topics, or compare activity across time windows.
+  description: `List facet values with their article counts: discover topics (slug), genres, countries, events, people (afpentity.person.keyword) or organisations (afpentity.organisation.keyword) cited; get trending topics; compare activity across two time windows.
 
-Args:
-  - preset: Optional preset (trending-topics) — overrides facet to 'slug' with last 24h news
-  - facet: Facet to list (e.g. 'slug', 'genre', 'country', 'event'). Required when no preset is used.
-           People and organisations cited in the articles: 'afpentity.person.keyword', 'afpentity.organisation.keyword'.
-  - lang: Language filter (e.g. 'en', 'fr')
-  - query: Keywords to scope the counts (e.g. 'climate change')
-  - dateFrom / dateTo: Time window for the counts (e.g. dateFrom 'now-1d'; dateFrom '2026-01-01', dateTo '2026-01-31')
-  - size: Number of facet values to return
-  - format: Output format — markdown (default), json, or csv.
-  - facets: Additional filters (country, region, genre, urgency, …). ${REGION_FACET_NOTE}
-           Defaults: class=text, provider=AFP (afp and its Arabic service أ ف ب). Override class to count media too (e.g. { class: ["text", "picture", "video"] }).
-
-Returns:
-  - markdown: Formatted list with labels and article counts
-  - json: Array of { name, count } objects
-  - csv: name,count rows
-  - facet "event": each value also has its readable name (label) — name is the id to filter on (afpevent:ID), no need to resolve it with another tool. Without lang, the label may be in another language than the answer: translate it
-
-Examples:
-  - Trending topics in French: { preset: "trending-topics" }
-  - Trending topics in English: { preset: "trending-topics", lang: "en" }
-  - Top slugs over the last 24h: { facet: "slug", dateFrom: "now-1d", format: "json" }
-  - Top slugs over the previous 24h: { facet: "slug", dateFrom: "now-2d", dateTo: "now-1d", format: "json" }
-  - Genres about a topic: { facet: "genre", query: "elections", format: "csv" }
-  - List countries as JSON: { facet: "country", size: 30, format: "json" }
-  - People in the news this week: { facet: "afpentity.person.keyword", dateFrom: "now-7d", format: "json" }`,
+Defaults: class=text, provider=AFP (including its Arabic service); pass facets.class to count media too. Event values come with their readable label: the name is the id to filter on (afpevent:ID). Without lang, labels may be in another language than the answer: translate them.`,
   inputSchema,
   handler: async (apicore: Pick<ApiCore, 'list'>, { preset, facet, lang, query, dateFrom, dateTo, size, format = 'markdown', facets }: ListFacetsInput) => {
     try {

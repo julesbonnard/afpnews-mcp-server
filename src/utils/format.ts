@@ -47,9 +47,8 @@ export function toApiFields(fields: readonly DocField[]): string[] {
 
 /**
  * Renders paragraphs as structured Markdown (### for subtitles, - for list
- * items) with a `[¶n]` marker per paragraph — the same numbering convention
- * afpnews-deck uses for its `?p=n` deep links, so a model reading this text
- * can build a correct link back to a specific paragraph. A list block's `j`-th
+ * items) with a 1-based `[¶n]` marker per paragraph, so a model can point back
+ * to a specific paragraph. A list block's `j`-th
  * item is always raw paragraph `block.startIndex + j`, since grouping only
  * merges strictly consecutive dash lines.
  */
@@ -70,12 +69,12 @@ function renderParagraphsMarkdown(paragraphs: AfpParagraph[]): string {
 
 /**
  * Render a video shot list (timecodes + descriptions + soundbite quotes) from `AfpDocument.shots`.
- * `(t=n)` is the shot's start time in seconds — the same convention afpnews-deck uses for its
- * `?t=n` deep links, so a model reading this text can build a correct link back to a shot.
+ * `(t=start&end=end)` are the shot bounds in seconds, so a model can point back to a shot
+ * without computing durations.
  */
 function renderShots(shots: NonNullable<AfpDocument['shots']>): string {
   const lines = shots.map((shot) => {
-    const head = `${shot.numero}. [${shot.start}-${shot.end}] (t=${shot.startSec}) ${shot.description}`.trimEnd();
+    const head = `${shot.numero}. [${shot.start}-${shot.end}] (t=${shot.startSec}&end=${shot.endSec}) ${shot.description}`.trimEnd();
     const quotes = shot.citations.map((c) => `   "${c.text}"`);
     return [head, ...quotes].join('\n');
   });
