@@ -16,8 +16,11 @@ import {
   formatErrorMessage,
   facetParamValueSchema,
   REGION_FACET_NOTE,
+  UNO_FACET_NOTE,
   AFP_PROVIDERS,
+  requestedUnos,
 } from './shared.js';
+import { formatPassages, passagesSchema, PASSAGES_NOTE } from '../utils/passages.js';
 
 async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent[]> {
   const content: AnyContent[] = [];
@@ -42,7 +45,7 @@ async function embedMediaDocuments(docs: AFPMediaDocument[]): Promise<AnyContent
   return content;
 }
 
-const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sortOrder', 'offset', 'facets']);
+const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sortOrder', 'offset', 'facets', 'passages']);
 
 // Le socle requis par parseDocument() (class, urgency, created, ...) est injecté
 // automatiquement par toApiFields() (SDK) — pas besoin de le lister ici.
@@ -50,17 +53,19 @@ const MEDIA_API_FIELDS = toApiFields([
   'title', 'caption', 'creditLine', 'creator',
   'country', 'city', 'aspectRatios', 'advisory', 'medias',
 ]);
+const PASSAGES_API_FIELDS = toApiFields(['caption', 'shots', 'paragraphs', 'genre']);
 
 const inputSchema = z.object({
   class: mediaClassEnum.optional().describe("Media class. Omit to search all media types."),
   query: z.string().optional().describe('Search keywords (AFP query syntax: AND, OR, quotes, title:).'),
-  size: z.number().optional().describe('Number of results (default 10, max 1000)'),
+  size: z.number().optional().describe('Number of results (default 10, or the number of facets.uno; max 1000)'),
   offset: z.number().optional().describe('Pagination offset'),
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   format: outputFormatEnum.optional().describe('Output format: markdown (default), json (with rendition URLs), or csv'),
   facets: z.record(z.string(), facetParamValueSchema).optional().describe(
-    `Facet filters: langs, dateFrom, dateTo, country, genre, event… ${REGION_FACET_NOTE}`
+    `Facet filters: langs, dateFrom, dateTo, country, genre, event… ${REGION_FACET_NOTE} ${UNO_FACET_NOTE}`
   ),
+  passages: passagesSchema.optional().describe(`${PASSAGES_NOTE} Videos only (shot lists); markdown only.`),
   embed: z.boolean().optional().describe(
     `Embed the lightest image of each result (video: poster frame) for vision, to compare candidates. Markdown only; size capped to ${EMBED_MAX_DOCS}.`
   ),
@@ -89,14 +94,18 @@ Renditions: quicklook ~245px, thumbnail ~320px, preview ~1200px, highdef ~3400px
   inputSchema,
   handler: async (
     apicore: Pick<ApiCore, 'search'>,
-    { class: mediaClass, query, size = DEFAULT_SEARCH_SIZE, offset, sortOrder = 'desc', format = 'markdown', facets, embed = false }: SearchMediaInput,
+    { class: mediaClass, query, size, offset, sortOrder = 'desc', format = 'markdown', facets, embed = false, passages }: SearchMediaInput,
   ) => {
     try {
       if (embed && format !== 'markdown') {
         return toolError(`embed is only supported with format: "markdown" (got "${format}").`);
       }
+      if (passages && (format !== 'markdown' || embed)) {
+        return toolError('passages is only supported with format: "markdown", without embed.');
+      }
 
-      const effectiveSize = embed ? Math.min(size, EMBED_MAX_DOCS) : size;
+      const requestedSize = size ?? requestedUnos(facets)?.length ?? DEFAULT_SEARCH_SIZE;
+      const effectiveSize = embed ? Math.min(requestedSize, EMBED_MAX_DOCS) : requestedSize;
       const classFilter = mediaClass ? [mediaClass] : ['picture', 'video', 'graphic', 'videography'];
       const request: SearchQueryParams = {
         query,
@@ -108,10 +117,16 @@ Renditions: quicklook ~245px, thumbnail ~320px, preview ~1200px, highdef ~3400px
         ...(facets ?? {}),
       };
 
-      const { documents, count } = await apicore.search(request, [...MEDIA_API_FIELDS], { parse: true, lenient: true });
+      const apiFields = passages ? [...new Set([...MEDIA_API_FIELDS, ...PASSAGES_API_FIELDS])] : [...MEDIA_API_FIELDS];
+      const { documents, count } = await apicore.search(request, apiFields, { parse: true, lenient: true });
 
       if (count === 0) {
         return { content: [textContent('No results found.')] };
+      }
+
+      if (passages) {
+        const pagination = buildPaginationLine(documents.length, count, offset ?? 0);
+        return { content: [textContent(`${pagination}\n\n${formatPassages(documents, passages)}`)] };
       }
 
       const docs = documents.map(normalizeMediaDocument);

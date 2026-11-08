@@ -191,10 +191,11 @@ describe('MCP integration', () => {
 
     it('returns csv with header and data rows', async () => {
       const result = await client.callTool({ name: 'afp_search_articles', arguments: { query: 'test', format: 'csv' } });
-      expect(result.content).toHaveLength(1);
+      expect(result.content).toHaveLength(2);
       const lines = getText(result).split('\n');
       expect(lines[0]).toBe('uno,headline,lang,genre');
       expect(lines).toHaveLength(4); // header + 3 docs
+      expect(getText(result, 1)).toContain('Showing 3 of 3 results');
     });
 
     it('returns csv with custom fields', async () => {
@@ -224,9 +225,10 @@ describe('MCP integration', () => {
       // header + fewer than 800 data rows
       expect(lines.length).toBeLessThan(801);
       expect(lines.length).toBeGreaterThan(1);
-      // Should have a truncation hint as second content block
-      expect(result.content).toHaveLength(2);
+      // Truncation hint, then the pagination line pointing past the shown rows
+      expect(result.content).toHaveLength(3);
       expect(getText(result, 1)).toContain('truncated');
+      expect(getText(result, 2)).toMatch(/Showing \d+ of 800 results \(offset: 0\)\. Use `offset: \d+`/);
     });
 
     it('json shown field matches actual documents in output', async () => {
@@ -246,7 +248,7 @@ describe('MCP integration', () => {
       expect(text).toContain('**UNO:** AFP-TEST-001');
       expect(text).toContain('**Lang:** fr');
       expect(text).toContain('**Genre:** news');
-      expect(text).toContain('**Status:** Usable');
+      expect(text).not.toContain('**Status:**');
       expect(text).toContain('**Signal:** update');
       expect(text).toContain('**Advisory:** CORRECTION');
       expect(text).toContain('---');

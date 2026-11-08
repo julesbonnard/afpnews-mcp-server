@@ -59,7 +59,7 @@ export type ToolResult = ToolSuccess | ToolError;
 export const ALL_DOC_FIELDS = [
   'afpshortid', 'uno', 'headline', 'published', 'lang', 'genre',
   'status', 'signal', 'advisory', 'country', 'city', 'slug', 'event', 'class', 'revision', 'created',
-  'wordCount',
+  'wordCount', 'lead',
 ] as const;
 
 export type DocField = typeof ALL_DOC_FIELDS[number];
