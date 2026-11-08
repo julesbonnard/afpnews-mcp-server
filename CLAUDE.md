@@ -51,6 +51,7 @@ src/
 └── utils/
     ├── format.ts         # formatDocument, textContent, toolError, truncateIfNeeded, buildPaginationLine
     ├── format-media.ts   # extractRenditions, formatMediaDocument
+    ├── passages.ts       # option passages des recherches : passages correspondant à des termes/un motif, classés tous documents confondus
     └── types.ts          # AFPDocument, TextContent, FormattedContent, constants
 ```
 
@@ -138,6 +139,11 @@ Preset disponible:
 Comportement:
 - Si `preset=trending-topics`, `facet` est ignoré et remplacé en interne par `slug`.
 - Sans preset, `facet` est requis.
+
+### Paramètre `passages` (`afp_search_articles`, `afp_search_media`)
+
+- Remplace les extraits par les seuls passages correspondant à `terms`/`pattern` (paragraphes des textes, plans et citations sonores des vidéos), classés tous résultats confondus, les meilleurs d'abord dans la limite de sortie commune (`CHARACTER_LIMIT`) ; `quotesOnly`, `lead`, `context` en options.
+- Avec `facets.uno` (liste d'UNO), la recherche porte sur ces documents : les filtres par défaut sautent et `size` vaut le nombre d'UNO.
 
 ### Paramètre `fullText` (tool `afp_search_articles`)
 

@@ -26,6 +26,7 @@ const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
   revision: d => d.revision,
   created: d => d.created.toISOString(),
   wordCount: d => d.wordCount,
+  lead: d => d.paragraphs[0]?.text,
 };
 
 // Champs publics dont le nom de requête API brut diffère du DocField (ou nécessite plusieurs
@@ -33,6 +34,7 @@ const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
 const RAW_FIELD_OVERRIDES: Partial<Record<DocField, readonly string[]>> = {
   event: ['afpentity'],
   country: ['country', 'countryname'],
+  lead: ['news'],
 };
 
 /**
@@ -81,6 +83,9 @@ function renderShots(shots: NonNullable<AfpDocument['shots']>): string {
 
   return `## Shot list\n\n${lines.join('\n')}`;
 }
+
+// Statut de presque toutes les dépêches : ne l'afficher que lorsqu'il sort de l'ordinaire.
+const USABLE_STATUS = 'Usable';
 
 export function truncationHint(remaining?: number): string {
   const suffix = remaining != null && remaining > 0
@@ -208,7 +213,7 @@ export function formatDocument(doc: AfpDocument, fullText = false): TextContent 
   const meta: string[] = [`UNO: ${doc.uno}`];
   if (doc.lang) meta.push(`Lang: ${doc.lang}`);
   if (doc.genre) meta.push(`Genre: ${doc.genre}`);
-  if (doc.status) meta.push(`Status: ${doc.status}`);
+  if (doc.status && doc.status !== USABLE_STATUS) meta.push(`Status: ${doc.status}`);
   if (doc.signal) meta.push(`Signal: ${doc.signal}`);
   if (doc.advisory) meta.push(`Advisory: ${doc.advisory}`);
   if (doc.events.length) meta.push(`Event: ${doc.events.map(e => e.name).join(', ')}`);
@@ -239,7 +244,11 @@ export function formatFullArticle(doc: AfpDocument): TextContent {
   );
   if (extras) lines.push(extras);
 
-  const flags = row(['Status', doc.status], ['Signal', doc.signal], ['Advisory', doc.advisory]);
+  const flags = row(
+    ['Status', doc.status === USABLE_STATUS ? undefined : doc.status],
+    ['Signal', doc.signal],
+    ['Advisory', doc.advisory],
+  );
   if (flags) lines.push(flags);
 
   const meta = lines.join('\n');
@@ -270,6 +279,9 @@ export function formatDocumentOutput(
     const { content, shown, truncated, remaining } = formatDocumentsAsCsvInner(documents, opts.fields);
     const result: TextContent[] = [content];
     if (truncated) result.push(textContent(truncationHint(remaining)));
+    // Separate block so the CSV itself stays parseable; without it the total is invisible in csv.
+    const summary = typeof opts.markdownPrefix === 'function' ? opts.markdownPrefix(shown) : opts.markdownPrefix;
+    if (summary) result.push(...summary);
     return { content: result, shown, truncated, remaining };
   }
   return truncateContentItems(

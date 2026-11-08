@@ -25,9 +25,14 @@ describe('formatDocument', () => {
     expect(result.text).not.toContain('SHORT_GUID:');
   });
 
+  it('shows the status only when it is not Usable', () => {
+    const result = formatDocument(parseDocument({ ...FIXTURE_DOC, status: 'Canceled' }));
+    expect(result.text).toContain('Status: Canceled');
+  });
+
   it('includes optional metadata (status, signal, advisory) when present', () => {
     const result = formatDocument(parseDocument(FIXTURE_DOC));
-    expect(result.text).toContain('Status: Usable');
+    expect(result.text).not.toContain('Status: Usable');
     expect(result.text).toContain('Signal: update');
     expect(result.text).toContain('Advisory: CORRECTION');
   });

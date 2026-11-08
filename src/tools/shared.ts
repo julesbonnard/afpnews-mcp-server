@@ -14,6 +14,16 @@ export const UNO_FORMAT_NOTE = 'A UNO (newsml.afp.com.<timestamp>.doc-<afpshorti
 // never reproduce it when quoting or answering.
 export const PARAGRAPH_MARKER_NOTE = 'Paragraphs are prefixed with a technical `[¶n]` marker (1-based): never reproduce it.';
 
+export const UNO_FACET_NOTE = 'uno: a list of UNOs to work on given documents (default filters then dropped).';
+
+// UNO demandés via facets.uno : la recherche est alors dimensionnée sur eux, sans filtre par défaut.
+export function requestedUnos(facets: Record<string, unknown> | undefined): string[] | undefined {
+  const uno = facets?.uno;
+  if (typeof uno === 'string') return [uno];
+  if (Array.isArray(uno)) return uno.map(String);
+  return undefined;
+}
+
 export const REGION_FACET_NOTE = `region filters on the countries of an AFP region (${Object.keys(AFP_REGIONS).join(', ')}); any facet accepts { exclude: [...] }.`;
 
 // La production en arabe de l'AFP porte le fournisseur « أ ف ب »

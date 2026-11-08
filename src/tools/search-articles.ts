@@ -21,8 +21,11 @@ import {
   UNO_FORMAT_NOTE,
   PARAGRAPH_MARKER_NOTE,
   REGION_FACET_NOTE,
+  UNO_FACET_NOTE,
   AFP_PROVIDERS,
+  requestedUnos,
 } from './shared.js';
+import { formatPassages, passagesSchema, PASSAGES_NOTE } from '../utils/passages.js';
 
 const reservedFacetKeys = new Set([
   'preset',
@@ -34,18 +37,20 @@ const reservedFacetKeys = new Set([
   'sortOrder',
   'offset',
   'facets',
+  'passages',
 ]);
 
 const inputSchema = z.object({
   preset: searchPresetEnum.optional().describe('Predefined AFP filter set.'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
-  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
+  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre. lead: the first paragraph, which gives the essentials of a wire.'),
   fullText: z.boolean().optional().describe('Return the full article body (markdown only). Default false, true with a preset.'),
   query: z.string().optional().describe('Search keywords (AFP query syntax: AND, OR, quotes, title:).'),
-  size: z.number().optional().describe('Number of results to return (default 10, max 1000)'),
+  size: z.number().optional().describe('Number of results to return (default 10, or the number of facets.uno; max 1000)'),
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   offset: z.number().optional().describe('Offset for pagination (number of results to skip)'),
-  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Facet filters: langs, dateFrom, dateTo, country, genre, slug, event, urgency, class… ${REGION_FACET_NOTE}`),
+  facets: z.record(z.string(), facetParamValueSchema).optional().describe(`Facet filters: langs, dateFrom, dateTo, country, genre, slug, event, urgency, class… ${REGION_FACET_NOTE} ${UNO_FACET_NOTE}`),
+  passages: passagesSchema.optional().describe(`${PASSAGES_NOTE} Markdown only.`),
 }).strict().superRefine((value, ctx) => {
   for (const key of Object.keys(value.facets ?? {})) {
     if (reservedFacetKeys.has(key)) {
@@ -76,7 +81,7 @@ export const afpSearchArticlesTool = {
   title: 'Search AFP News Articles',
   description: `Search AFP news articles (text). The primary search tool: use afp_search_media only for photos, videos, graphics or motion design.
 
-Set facets.langs: without it, results mix all languages. Defaults: class=text and multimedia (a story in both is returned once, in its latest version), provider=AFP (including its Arabic service). Agenda items are excluded unless a preset asks for them. Results are sorted by date, never by relevance. Paginate with offset; for long chronological scans, narrow dateFrom/dateTo rather than raising offset.
+Set facets.langs: without it, results mix all languages. Defaults: class=text and multimedia (a story in both is returned once, in its latest version), provider=AFP (including its Arabic service). Agenda items are excluded unless a preset asks for them. Results are sorted by date, never by relevance. Paginate with offset (offset + size must not exceed 10000; beyond that, split dateFrom/dateTo). Pages can be requested in parallel; a story in both text and multimedia may then appear on two pages.
 
 ${UNO_FORMAT_NOTE}
 
@@ -84,19 +89,25 @@ ${PARAGRAPH_MARKER_NOTE}`,
   inputSchema,
   handler: async (
     apicore: Pick<ApiCore, 'search'>,
-    { preset, format = 'markdown', fields, fullText = false, query, size = DEFAULT_SEARCH_SIZE, sortOrder = 'desc', offset, facets }: SearchInput,
+    { preset, format = 'markdown', fields, fullText = false, query, size, sortOrder = 'desc', offset, facets, passages }: SearchInput,
   ) => {
     try {
+      if (passages && format !== 'markdown') {
+        return toolError(`passages is only supported with format: "markdown" (got "${format}").`);
+      }
+      const unos = requestedUnos(facets);
       const facetFilters = {
-        class: ['text', 'multimedia'],
-        provider: AFP_PROVIDERS,
-        genreid: AGENDA_GENRE_EXCLUSIONS,
+        ...(!unos && {
+          class: ['text', 'multimedia'],
+          provider: AFP_PROVIDERS,
+          genreid: AGENDA_GENRE_EXCLUSIONS,
+        }),
         ...(facets ?? {}),
       };
 
       let request: SearchQueryParams = {
         query,
-        size,
+        size: size ?? unos?.length ?? DEFAULT_SEARCH_SIZE,
         sortOrder,
         startAt: offset,
         ...facetFilters,
@@ -125,6 +136,11 @@ ${PARAGRAPH_MARKER_NOTE}`,
       const rawShown = (shown: number) =>
         shown === unique.length ? documents.length : documents.indexOf(unique[shown - 1]!) + 1;
       const mergedNote = merged ? ` ${merged} duplicate(s) (same story in text and multimedia) merged, keeping the latest version.` : '';
+
+      if (passages) {
+        const pagination = buildPaginationLine(documents.length, count, currentOffset) + mergedNote;
+        return { content: [textContent(`${pagination}\n\n${formatPassages(unique, passages)}`)] };
+      }
 
       return formatDocumentOutput(unique, format, {
         fields: outputFields,
