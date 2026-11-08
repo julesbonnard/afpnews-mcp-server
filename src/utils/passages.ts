@@ -1,43 +1,54 @@
 import { z } from 'zod';
-import type { AfpDocument, ApiCore } from 'afpnews-api';
-import { textContent, toolError } from '../utils/format.js';
-import { PARAGRAPH_MARKER_NOTE } from './shared.js';
+import type { AfpDocument } from 'afpnews-api';
 
-const MAX_DOCS = 100;
 // Borne la réponse renvoyée au LLM ; les meilleurs passages passent en premier.
 const MAX_OUTPUT_CHARS = 24_000;
 
-const inputSchema = z.object({
-  unos: z.string().array().min(1).max(MAX_DOCS).describe('UNOs returned by a previous search'),
-  terms: z
-    .string()
-    .min(2)
-    .array()
-    .max(10)
-    .optional()
-    .describe(
-      'Names, keywords or short phrases to look for, with useful variants (other spellings, translations). Case and accents ignored, plurals and inflections caught.',
-    ),
-  pattern: z
-    .string()
-    .optional()
-    .describe(
-      'JavaScript regular expression (no slashes, case-insensitive) for what terms cannot express: alternatives, a phrase with variable words, numbers. Tested on the text with and without accents. Matches inside words.',
-    ),
-  quotesOnly: z
-    .boolean()
-    .optional()
-    .describe('Keep only paragraphs containing quotation marks, and only video shots with a soundbite'),
-  lead: z
-    .boolean()
-    .optional()
-    .describe(
-      "Add each matching document's lead ([¶1]): AFP wires put the essentials first (who, what, where, when), so it gives the context of a passage. Alone, without terms, pattern or quotesOnly: returns only the lead of every document (caption for videos), a cheap way to triage before reading anything in full. Feature genres (reportage, papier d'angle) may open with a narrative hook instead.",
-    ),
-  context: z.number().int().min(0).max(2).optional().describe('Paragraphs kept before and after each match (default 0)'),
-});
+function isValidRegExp(pattern: string): boolean {
+  try {
+    new RegExp(pattern, 'giu');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-type FindPassagesInput = z.infer<typeof inputSchema>;
+export const passagesSchema = z
+  .object({
+    terms: z
+      .string()
+      .min(2)
+      .array()
+      .max(10)
+      .optional()
+      .describe(
+        'Names, keywords or short phrases to look for, with useful variants (other spellings, translations). Case and accents ignored, plurals and inflections caught. Give distinctive ones: a word present everywhere matches every paragraph.',
+      ),
+    pattern: z
+      .string()
+      .refine(isValidRegExp, 'Invalid regular expression')
+      .optional()
+      .describe(
+        'JavaScript regular expression (no slashes, case-insensitive) for what terms cannot express: alternatives, a phrase with variable words, numbers. Tested on the text with and without accents. Matches inside words.',
+      ),
+    quotesOnly: z
+      .boolean()
+      .optional()
+      .describe('Keep only paragraphs containing quotation marks, and only video shots with a soundbite'),
+    lead: z
+      .boolean()
+      .optional()
+      .describe(
+        "Add each matching document's lead ([¶1]), which gives the context of a passage. Alone: returns only the lead of every document (caption for videos), to triage before reading in full. Feature genres may open with a narrative hook instead.",
+      ),
+    context: z.number().int().min(0).max(2).optional().describe('Paragraphs kept before and after each match (default 0)'),
+  })
+  .refine(p => p.terms?.length || p.pattern || p.quotesOnly || p.lead, 'Give terms, a pattern, quotesOnly or lead.');
+
+export type PassagesOptions = z.infer<typeof passagesSchema>;
+
+export const PASSAGES_NOTE =
+  'Instead of excerpts, return only the passages matching terms or a pattern (paragraphs for texts, shots and soundbites for videos), ranked across all results; use it to locate quotes, figures or facts without reading everything. No rephrasing is caught: give variants.';
 
 type Matcher = (text: string, normalized: string) => number;
 
@@ -108,7 +119,7 @@ function render(doc: AfpDocument, kept: Set<number>, lead: boolean): string {
     return [header(doc), caption, ...shots].filter(Boolean).join('\n');
   }
   if (lead) kept = new Set([0, ...kept]);
-  // Même numérotation [¶n] que afp_get_article (index + 1), pour les liens ?p=n.
+  // Même numérotation [¶n] que afp_get_article (index + 1), pour pointer un paragraphe.
   const lines = [header(doc)];
   let previous = -1;
   for (const i of [...kept].sort((a, b) => a - b)) {
@@ -122,11 +133,11 @@ function render(doc: AfpDocument, kept: Set<number>, lead: boolean): string {
 type Hit = { doc: number; index: number; score: number; rank: number };
 
 // À score égal, le n-ième passage de chaque document passe avant le (n+1)-ième d'un autre : aucun ne monopolise le budget.
-export function findPassages(
+function rankPassages(
   docs: AfpDocument[],
   matchers: Matcher[],
-  { context = 0, quotesOnly = false, lead = false } = {},
-): { passages: string[]; unmatched: number[]; truncated: number[] } {
+  { context = 0, quotesOnly = false, lead = false }: PassagesOptions,
+): { passages: string[]; unmatched: number; truncated: string[] } {
   const skim = lead && !matchers.length && !quotesOnly;
   const hits: Hit[] = docs.flatMap((doc, d) => {
     if (skim) return hasLead(doc) ? [{ doc: d, index: -1, score: 1, rank: 0 }] : [];
@@ -158,48 +169,25 @@ export function findPassages(
     shown++;
   }
 
-  const matched = new Set(hits.map(h => h.doc));
   return {
     passages: docs.flatMap((doc, d) => (kept.has(d) ? [render(doc, kept.get(d)!, lead)] : [])),
-    unmatched: docs.flatMap((_, d) => (matched.has(d) ? [] : [d])),
-    truncated: [...new Set(hits.slice(shown).map(h => h.doc))].sort((a, b) => a - b),
+    unmatched: docs.length - new Set(hits.map(h => h.doc)).size,
+    truncated: [...new Set(hits.slice(shown).map(h => h.doc))].sort((a, b) => a - b).map(d => docs[d].uno),
   };
 }
 
-export const afpFindPassagesTool = {
-  name: 'afp_find_passages',
-  title: 'Find Passages in AFP Documents',
-  description: `Find the passages that match given terms or a regular expression across up to ${MAX_DOCS} AFP documents at once (texts and videos together), without reading them in full: the best matching paragraphs for texts, matching shots and their soundbites for videos. Use it after a search to locate quotes, figures or facts, then call afp_get_article only on the documents whose full context is needed. Give distinctive terms: a word present in every document (e.g. the name of the person all results are about) matches every paragraph. No rephrasing is caught: give variants.
-
-${PARAGRAPH_MARKER_NOTE}
-
-Video shots carry their bounds in seconds as (t=start&end=end).`,
-  inputSchema,
-  handler: async (
-    apicore: Pick<ApiCore, 'get'>,
-    { unos, terms = [], pattern, context, quotesOnly, lead }: FindPassagesInput,
-  ) => {
-    if (!terms.length && !pattern && !quotesOnly && !lead) return toolError('Give terms, a pattern, quotesOnly or lead.');
-    let matchers: Matcher[];
-    try {
-      matchers = [...terms.map(termMatcher), ...(pattern ? [patternMatcher(pattern)] : [])];
-    } catch (e) {
-      return toolError(`Invalid pattern: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    const loaded = await Promise.all(unos.map(uno => apicore.get(uno, { parse: true }).catch(() => undefined)));
-    const missing = unos.filter((_, i) => !loaded[i]);
-    const docs = loaded.filter((doc): doc is AfpDocument => !!doc);
-    const { passages, unmatched, truncated } = findPassages(docs, matchers, { context, quotesOnly, lead });
-    const ids = (indexes: number[]) => indexes.map(d => docs[d].uno).join(', ');
-    const text = [
-      ...passages,
-      unmatched.length && `No match in: ${ids(unmatched)}`,
-      missing.length && `Not found: ${missing.join(', ')}`,
-      truncated.length &&
-        `Output limit reached, more matches in: ${ids(truncated)} (call again on these, or with narrower terms)`,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    return { content: [textContent(text)] };
-  },
-};
+export function formatPassages(docs: AfpDocument[], options: PassagesOptions): string {
+  const matchers = [
+    ...(options.terms ?? []).map(termMatcher),
+    ...(options.pattern ? [patternMatcher(options.pattern)] : []),
+  ];
+  const { passages, unmatched, truncated } = rankPassages(docs, matchers, options);
+  return [
+    ...passages,
+    unmatched && `${unmatched} document(s) without match.`,
+    truncated.length &&
+      `Output limit reached, more matches in: ${truncated.join(', ')} (search again with facets.uno, or narrower terms)`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}

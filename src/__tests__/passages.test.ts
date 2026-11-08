@@ -1,5 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { afpFindPassagesTool } from '../tools/find-passages.js';
+import { afpSearchArticlesTool } from '../tools/search-articles.js';
+import { afpSearchMediaTool } from '../tools/search-media.js';
+import { passagesSchema } from '../utils/passages.js';
 
 const text = (uno: string, headline: string, paragraphs: string[]) => ({
   uno,
@@ -38,7 +40,9 @@ const DOCS: Record<string, unknown> = {
       },
     ],
   },
-  L: text('L', 'Long', ['Le ministre ' + 'a parlé longuement. '.repeat(150)]),
+  ...Object.fromEntries(
+    Array.from({ length: 20 }, (_, i) => [`L${i}`, text(`L${i}`, 'Long', ['Le ministre ' + 'a parlé longuement. '.repeat(150)])]),
+  ),
   B: text('B', 'Bavard', Array(10).fill('Le ministre ' + 'a parlé. '.repeat(300))),
   P: text('P', 'Carbone', [
     'Réforme du marché européen.',
@@ -53,19 +57,22 @@ const DOCS: Record<string, unknown> = {
   E: text('E', 'Autre', ['Rien à voir.']),
 };
 
-const apicore = {
-  get: mock(async (uno: string) => {
-    if (!DOCS[uno]) throw new Error(`Document "${uno}" not found`);
-    return DOCS[uno];
-  }),
-} as any;
+const LONG = Array.from({ length: 20 }, (_, i) => `L${i}`);
 
-const run = async (input: Record<string, unknown>) => {
-  const result: any = await afpFindPassagesTool.handler(apicore, input as any);
-  return result.content[0].text as string;
+// Simule la recherche par facets.uno : renvoie les documents demandés, dans l'ordre.
+const searchMock = mock(async (request: any) => {
+  const documents = [request.uno].flat().filter(uno => DOCS[uno]).map(uno => DOCS[uno]);
+  return { documents, count: documents.length };
+});
+const apicore = { search: searchMock } as any;
+
+const call = (input: Record<string, unknown>) => {
+  const { unos, ...passages } = input as { unos: string[] };
+  return afpSearchArticlesTool.handler(apicore, { facets: { uno: unos }, passages } as any) as Promise<any>;
 };
+const run = async (input: Record<string, unknown>) => (await call(input)).content[0].text as string;
 
-describe('afp_find_passages', () => {
+describe('afp_search_articles passages', () => {
   it('renvoie les paragraphes trouvés avec leur [¶n] et leurs voisins', async () => {
     const out = await run({ unos: ['T'], terms: ['ministre'], context: 1 });
     expect(out).toContain('[¶2] Le ministre a été interrogé.');
@@ -93,15 +100,37 @@ describe('afp_find_passages', () => {
     expect(out).not.toContain('PLAN LARGE');
   });
 
-  it('liste les documents sans correspondance ou introuvables', async () => {
-    const out = await run({ unos: ['E', 'X'], terms: ['ministre'] });
-    expect(out).toContain('No match in: E');
-    expect(out).toContain('Not found: X');
+  it('compte les documents sans correspondance', async () => {
+    expect(await run({ unos: ['E', 'T'], terms: ['ministre'] })).toContain('1 document(s) without match.');
+  });
+
+  it('recherche par UNO sans les filtres par défaut, dimensionnée sur la liste', async () => {
+    await run({ unos: ['T', 'V'], terms: ['ministre'] });
+    const [request] = searchMock.mock.calls.at(-1)!;
+    expect(request.size).toBe(2);
+    expect(request.class).toBeUndefined();
+    expect(request.genreid).toBeUndefined();
+  });
+
+  it('refuse passages hors markdown', async () => {
+    const result: any = await afpSearchArticlesTool.handler(apicore, {
+      format: 'json',
+      passages: { terms: ['ministre'] },
+    } as any);
+    expect(result.isError).toBe(true);
+  });
+
+  it('cherche aussi dans les plans des vidéos de afp_search_media', async () => {
+    const result: any = await afpSearchMediaTool.handler(apicore, {
+      facets: { uno: ['V'] },
+      passages: { terms: ['céderons'] },
+    } as any);
+    expect(result.content[0].text).toContain('(t=5&end=12) SOUNDBITE');
   });
 
   it('exige un début de mot', async () => {
     expect(await run({ unos: ['E'], terms: ['voir'] })).toContain('[¶1] Rien à voir.');
-    expect(await run({ unos: ['E'], terms: ['oir'] })).toContain('No match in: E');
+    expect(await run({ unos: ['E'], terms: ['oir'] })).toContain('1 document(s) without match.');
   });
 
   it('accepte une expression régulière, avec ou sans accents', async () => {
@@ -115,10 +144,8 @@ describe('afp_find_passages', () => {
     expect(out).toContain('[¶8] Le prix atteint 45 euros la tonne.');
   });
 
-  it('renvoie une erreur lisible pour un motif invalide', async () => {
-    const result: any = await afpFindPassagesTool.handler(apicore, { unos: ['T'], pattern: '(' });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toMatch(/^Invalid pattern/);
+  it('refuse un motif invalide', () => {
+    expect(passagesSchema.safeParse({ pattern: '(' }).success).toBe(false);
   });
 
   it('quotesOnly ne garde que les paragraphes cités et les plans avec citation', async () => {
@@ -130,9 +157,8 @@ describe('afp_find_passages', () => {
     expect(video).not.toContain('PLAN LARGE');
   });
 
-  it('exige des termes, un motif, quotesOnly ou lead', async () => {
-    const result: any = await afpFindPassagesTool.handler(apicore, { unos: ['T'] });
-    expect(result.isError).toBe(true);
+  it('exige des termes, un motif, quotesOnly ou lead', () => {
+    expect(passagesSchema.safeParse({}).success).toBe(false);
   });
 
   it('lead seul renvoie le début de chaque document', async () => {
@@ -151,12 +177,12 @@ describe('afp_find_passages', () => {
   });
 
   it('liste les documents au-delà du budget de sortie', async () => {
-    const out = await run({ unos: Array(20).fill('L'), terms: ['ministre'] });
+    const out = await run({ unos: LONG, terms: ['ministre'] });
     expect(out).toMatch(/Output limit reached, more matches in: L/);
   });
 
   it('donne le budget aux meilleurs passages, quel que soit le document', async () => {
-    const out = await run({ unos: [...Array(20).fill('L'), 'P'], pattern: '45|euro|tonne|ministre' });
+    const out = await run({ unos: [...LONG, 'P'], pattern: '45|euro|tonne|ministre' });
     expect(out).toContain('[¶8] Le prix atteint 45 euros la tonne.');
   });
 

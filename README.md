@@ -160,7 +160,6 @@ Each definition is framework-agnostic:
 | `afp_search_articles` | Search AFP articles with filters, presets, and full-text mode |
 | `afp_get_article` | Get a full article by its UNO identifier |
 | `afp_find_similar` | Find similar articles (More Like This) from a UNO |
-| `afp_find_passages` | Find the passages matching terms or a regular expression across up to 100 documents (texts and video shots) |
 | `afp_list_facets` | List facet values (topics, genres, countries) with frequency counts |
 | `afp_search_media` | Search AFP media documents (photos, videos, graphics) |
 | `afp_get_media` | Get a full media document by UNO, with optional base64 image embed |

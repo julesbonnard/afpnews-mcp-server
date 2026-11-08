@@ -29,7 +29,6 @@ src/
 │   ├── search-articles.ts
 │   ├── get-article.ts
 │   ├── find-similar.ts
-│   ├── find-passages.ts
 │   ├── list-facets.ts
 │   ├── search-media.ts
 │   └── get-media.ts
@@ -52,11 +51,12 @@ src/
 └── utils/
     ├── format.ts         # formatDocument, textContent, toolError, truncateIfNeeded, buildPaginationLine
     ├── format-media.ts   # extractRenditions, formatMediaDocument
+    ├── passages.ts       # option passages des recherches : passages correspondant à des termes/un motif, classés tous documents confondus
     └── types.ts          # AFPDocument, TextContent, FormattedContent, constants
 ```
 
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
-2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_find_passages`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
+2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
 3. Authenticates with username/password on first call, then reuses or refreshes the token for subsequent queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Hono + `createMcpHandler()` — a fresh `McpServer` per request, no session store or other server-side state, OAuth2 PKCE per-request bearer token). HTTP has two entry points sharing the same `createHttpApp()`: `startHttpServer()` (Bun, `Bun.serve`) and `worker.ts` (Cloudflare Worker, `export default { fetch }`) — see "Cloudflare Workers" in README.md for deployment.
 
@@ -112,7 +112,6 @@ On Workers, these are read from the `env` binding (`wrangler.toml` `[vars]` + `w
 | `afp_search_articles`  | Outil principal de recherche d'articles (filtres + presets + mode fullText) |
 | `afp_get_article`      | Récupération d'un article complet par UNO (texte non tronqué)      |
 | `afp_find_similar`     | Articles similaires (More Like This) à partir d'un UNO             |
-| `afp_find_passages`    | Passages (paragraphes, plans vidéo) correspondant à des termes ou un motif, sur 100 documents au plus, classés tous documents confondus |
 | `afp_list_facets`      | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
 | `afp_search_media`     | Recherche de médias AFP (photos, vidéos, graphiques)               |
 | `afp_get_media`        | Récupération d'un média complet par UNO, avec embed base64 optionnel |
@@ -140,6 +139,11 @@ Preset disponible:
 Comportement:
 - Si `preset=trending-topics`, `facet` est ignoré et remplacé en interne par `slug`.
 - Sans preset, `facet` est requis.
+
+### Paramètre `passages` (`afp_search_articles`, `afp_search_media`)
+
+- Remplace les extraits par les seuls passages correspondant à `terms`/`pattern` (paragraphes des textes, plans et citations sonores des vidéos), classés tous résultats confondus dans un budget de sortie de 24 000 caractères ; `quotesOnly`, `lead`, `context` en options.
+- Avec `facets.uno` (liste d'UNO), la recherche porte sur ces documents : les filtres par défaut sautent et `size` vaut le nombre d'UNO.
 
 ### Paramètre `fullText` (tool `afp_search_articles`)
 
