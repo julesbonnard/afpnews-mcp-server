@@ -81,7 +81,7 @@ export const afpSearchArticlesTool = {
   title: 'Search AFP News Articles',
   description: `Search AFP news articles (text). The primary search tool: use afp_search_media only for photos, videos, graphics or motion design.
 
-Set facets.langs: without it, results mix all languages. Defaults: class=text and multimedia (a story in both is returned once, in its latest version), provider=AFP (including its Arabic service). Agenda items are excluded unless a preset asks for them. Results are sorted by date, never by relevance. Paginate with offset; for long chronological scans, narrow dateFrom/dateTo rather than raising offset.
+Set facets.langs: without it, results mix all languages. Defaults: class=text and multimedia (a story in both is returned once, in its latest version), provider=AFP (including its Arabic service). Agenda items are excluded unless a preset asks for them. Results are sorted by date, never by relevance. Paginate with offset (offset + size must not exceed 10000; beyond that, split dateFrom/dateTo). Pages can be requested in parallel; a story in both text and multimedia may then appear on two pages.
 
 ${UNO_FORMAT_NOTE}
 
