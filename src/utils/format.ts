@@ -279,6 +279,9 @@ export function formatDocumentOutput(
     const { content, shown, truncated, remaining } = formatDocumentsAsCsvInner(documents, opts.fields);
     const result: TextContent[] = [content];
     if (truncated) result.push(textContent(truncationHint(remaining)));
+    // Separate block so the CSV itself stays parseable; without it the total is invisible in csv.
+    const summary = typeof opts.markdownPrefix === 'function' ? opts.markdownPrefix(shown) : opts.markdownPrefix;
+    if (summary) result.push(...summary);
     return { content: result, shown, truncated, remaining };
   }
   return truncateContentItems(
