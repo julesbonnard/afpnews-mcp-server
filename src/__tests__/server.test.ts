@@ -246,7 +246,7 @@ describe('MCP integration', () => {
       expect(text).toContain('**UNO:** AFP-TEST-001');
       expect(text).toContain('**Lang:** fr');
       expect(text).toContain('**Genre:** news');
-      expect(text).toContain('**Status:** Usable');
+      expect(text).not.toContain('**Status:**');
       expect(text).toContain('**Signal:** update');
       expect(text).toContain('**Advisory:** CORRECTION');
       expect(text).toContain('---');

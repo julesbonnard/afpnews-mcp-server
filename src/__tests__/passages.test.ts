@@ -196,6 +196,12 @@ describe('afp_search_articles passages', () => {
     expect(out).toContain('[¶8] Le prix atteint 45 euros la tonne.');
   });
 
+  it('un terme rare passe devant un terme présent partout', async () => {
+    const out = await run({ unos: [...LONG, 'T'], terms: ['ministre', 'élections'] });
+    expect(out).toMatch(/Output limit reached/);
+    expect(out).toContain('[¶6] Les élections');
+  });
+
   it('à score égal, sert chaque document avant le deuxième passage d’un autre', async () => {
     const out = await run({ unos: ['B', 'T'], terms: ['ministre'] });
     expect(out).toContain('## Titre');

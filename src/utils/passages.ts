@@ -20,7 +20,7 @@ export const passagesSchema = z
       .max(10)
       .optional()
       .describe(
-        'Names, keywords or short phrases to look for, with useful variants (other spellings, translations). Case and accents ignored, plurals and inflections caught. Give distinctive ones: a word present everywhere matches every paragraph.',
+        'Names, keywords or short phrases to look for, with useful variants (other spellings, translations). Case and accents ignored, plurals and inflections caught.',
       ),
     pattern: z
       .string()
@@ -48,7 +48,8 @@ export type PassagesOptions = z.infer<typeof passagesSchema>;
 export const PASSAGES_NOTE =
   'Instead of excerpts, return only the passages matching terms or a pattern (paragraphs for texts, shots and soundbites for videos), ranked across all results; use it to locate quotes, figures or facts without reading everything. No rephrasing is caught: give variants.';
 
-type Matcher = (text: string, normalized: string) => number;
+// Critères satisfaits par un texte : un par terme, un par correspondance distincte du motif.
+type Matcher = (text: string, normalized: string) => string[];
 
 function normalize(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -61,28 +62,26 @@ function escapeRegExp(text: string): string {
 // Début de mot imposé, fin libre : pluriels et flexions passent, « RN » ne matche pas « gouvernement ».
 function termMatcher(term: string): Matcher {
   const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(normalize(term.trim()))}`, 'u');
-  return (_, normalized) => (re.test(normalized) ? 1 : 0);
+  return (_, normalized) => (re.test(normalized) ? [`term:${term}`] : []);
 }
 
-// Correspondances distinctes : sinon une alternative omniprésente (euro → européen) égalise tout et l'ordre du texte décide.
 function patternMatcher(pattern: string): Matcher {
   const re = new RegExp(pattern, 'giu');
   return (text, normalized) => {
     const distinct = new Set<string>();
     for (const source of [text, normalized])
-      for (const [m] of source.matchAll(re)) if (m) distinct.add(normalize(m));
-    return distinct.size;
+      for (const [m] of source.matchAll(re)) if (m) distinct.add(`pattern:${normalize(m)}`);
+    return [...distinct];
   };
 }
 
 const QUOTE_MARKS = /["«»“”„]/;
 
-// Sans terme ni motif, quotesOnly garde toutes les citations (score 1).
-function score(text: string, matchers: Matcher[], quoted: boolean): number {
-  if (!quoted) return 0;
-  if (!matchers.length) return 1;
+// null : écarté par quotesOnly.
+function criteria(text: string, matchers: Matcher[], quoted: boolean): string[] | null {
+  if (!quoted) return null;
   const normalized = normalize(text);
-  return matchers.reduce((sum, m) => sum + m(text, normalized), 0);
+  return matchers.flatMap(m => m(text, normalized));
 }
 
 const isVideo = (doc: AfpDocument) => !!doc.shots?.length;
@@ -93,12 +92,27 @@ function header(doc: AfpDocument): string {
   return `## ${doc.headline ?? doc.uno}\nUNO: ${doc.uno} · ${date} · ${doc.class}${genre}`;
 }
 
-function scores(doc: AfpDocument, matchers: Matcher[], quotesOnly: boolean): number[] {
+function units(doc: AfpDocument, matchers: Matcher[], quotesOnly: boolean): (string[] | null)[] {
   if (isVideo(doc))
     return doc.shots!.map(s =>
-      score([s.description, ...s.citations.map(c => c.text)].join(' '), matchers, !quotesOnly || s.citations.length > 0),
+      criteria([s.description, ...s.citations.map(c => c.text)].join(' '), matchers, !quotesOnly || s.citations.length > 0),
     );
-  return doc.paragraphs.map(p => score(p.text, matchers, !quotesOnly || QUOTE_MARKS.test(p.text)));
+  return doc.paragraphs.map(p => criteria(p.text, matchers, !quotesOnly || QUOTE_MARKS.test(p.text)));
+}
+
+// Pondération IDF (comme BM25) sur l'ensemble des résultats : un critère présent partout (euro → européen,
+// le nom de la personne cherchée) pèse peu, un critère rare beaucoup. Toujours > 0 : rien n'est écarté.
+function scoreUnits(found: (string[] | null)[][], weighted: boolean): number[][] {
+  if (!weighted) return found.map(doc => doc.map(keys => (keys ? 1 : 0)));
+  const frequency = new Map<string, number>();
+  let total = 0;
+  for (const doc of found)
+    for (const keys of doc) {
+      total++;
+      for (const key of keys ?? []) frequency.set(key, (frequency.get(key) ?? 0) + 1);
+    }
+  const weight = (key: string) => Math.log(1 + total / frequency.get(key)!);
+  return found.map(doc => doc.map(keys => (keys ?? []).reduce((sum, key) => sum + weight(key), 0)));
 }
 
 const hasLead = (doc: AfpDocument) => (isVideo(doc) ? !!doc.caption : doc.paragraphs.length > 0);
@@ -137,9 +151,13 @@ function rankPassages(
   { context = 0, quotesOnly = false, lead = false }: PassagesOptions,
 ): { passages: string[]; unmatched: number; truncated: string[] } {
   const skim = lead && !matchers.length && !quotesOnly;
+  const scores = scoreUnits(
+    docs.map(doc => (skim ? [] : units(doc, matchers, quotesOnly))),
+    matchers.length > 0,
+  );
   const hits: Hit[] = docs.flatMap((doc, d) => {
     if (skim) return hasLead(doc) ? [{ doc: d, index: -1, score: 1, rank: 0 }] : [];
-    return scores(doc, matchers, quotesOnly)
+    return scores[d]
       .map((score, index) => ({ doc: d, index, score, rank: 0 }))
       .filter(h => h.score > 0)
       .sort((a, b) => b.score - a.score || a.index - b.index)
