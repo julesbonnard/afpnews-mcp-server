@@ -29,6 +29,7 @@ src/
 │   ├── search-articles.ts
 │   ├── get-article.ts
 │   ├── find-similar.ts
+│   ├── find-passages.ts
 │   ├── list-facets.ts
 │   ├── search-media.ts
 │   └── get-media.ts
@@ -55,7 +56,7 @@ src/
 ```
 
 1. Creates an `ApiCore` client from `afpnews-api` using `APICORE_API_KEY`
-2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
+2. Registers MCP tools via `@modelcontextprotocol/server`: `afp_search_articles`, `afp_get_article`, `afp_find_similar`, `afp_find_passages`, `afp_list_facets`, `afp_search_media`, `afp_get_media`
 3. Authenticates with username/password on first call, then reuses or refreshes the token for subsequent queries
 4. Supports two transports: stdio (default) and HTTP (`MCP_TRANSPORT=http`, uses Hono + `createMcpHandler()` — a fresh `McpServer` per request, no session store or other server-side state, OAuth2 PKCE per-request bearer token). HTTP has two entry points sharing the same `createHttpApp()`: `startHttpServer()` (Bun, `Bun.serve`) and `worker.ts` (Cloudflare Worker, `export default { fetch }`) — see "Cloudflare Workers" in README.md for deployment.
 
@@ -111,6 +112,7 @@ On Workers, these are read from the `env` binding (`wrangler.toml` `[vars]` + `w
 | `afp_search_articles`  | Outil principal de recherche d'articles (filtres + presets + mode fullText) |
 | `afp_get_article`      | Récupération d'un article complet par UNO (texte non tronqué)      |
 | `afp_find_similar`     | Articles similaires (More Like This) à partir d'un UNO             |
+| `afp_find_passages`    | Passages (paragraphes, plans vidéo) correspondant à des termes ou un motif, sur 100 documents au plus, classés tous documents confondus |
 | `afp_list_facets`      | Liste des valeurs d'une facette (slug, genre, country) avec fréquence (preset disponible) |
 | `afp_search_media`     | Recherche de médias AFP (photos, vidéos, graphiques)               |
 | `afp_get_media`        | Récupération d'un média complet par UNO, avec embed base64 optionnel |

@@ -129,6 +129,7 @@ describe('buildServer', () => {
         'afp_search_articles',
         'afp_get_article',
         'afp_find_similar',
+        'afp_find_passages',
         'afp_list_facets',
         'afp_search_media',
         'afp_get_media',
