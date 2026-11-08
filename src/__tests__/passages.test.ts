@@ -41,9 +41,9 @@ const DOCS: Record<string, unknown> = {
     ],
   },
   ...Object.fromEntries(
-    Array.from({ length: 20 }, (_, i) => [`L${i}`, text(`L${i}`, 'Long', ['Le ministre ' + 'a parlé longuement. '.repeat(150)])]),
+    Array.from({ length: 20 }, (_, i) => [`L${i}`, text(`L${i}`, 'Long', ['Le ministre ' + 'a parlé longuement. '.repeat(400)])]),
   ),
-  B: text('B', 'Bavard', Array(10).fill('Le ministre ' + 'a parlé. '.repeat(300))),
+  B: text('B', 'Bavard', Array(10).fill('Le ministre ' + 'a parlé. '.repeat(1200))),
   P: text('P', 'Carbone', [
     'Réforme du marché européen.',
     'La Commission européenne hésite.',
@@ -110,6 +110,16 @@ describe('afp_search_articles passages', () => {
     expect(request.size).toBe(2);
     expect(request.class).toBeUndefined();
     expect(request.genreid).toBeUndefined();
+  });
+
+  it('expose le lead en csv', async () => {
+    const result: any = await afpSearchArticlesTool.handler(apicore, {
+      format: 'csv',
+      fields: ['uno', 'lead'],
+      facets: { uno: ['T'] },
+    } as any);
+    expect(result.content[0].text).toBe('uno,lead\nT,Premier paragraphe sans rapport.');
+    expect(searchMock.mock.calls.at(-1)![1]).toContain('news');
   });
 
   it('refuse passages hors markdown', async () => {

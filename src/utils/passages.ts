@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import type { AfpDocument } from 'afpnews-api';
-
-// Borne la réponse renvoyée au LLM ; les meilleurs passages passent en premier.
-const MAX_OUTPUT_CHARS = 24_000;
+import { CHARACTER_LIMIT } from './config.js';
 
 function isValidRegExp(pattern: string): boolean {
   try {
@@ -162,7 +160,7 @@ function rankPassages(
       for (let j = Math.max(0, hit.index - radius); j <= Math.min(last, hit.index + radius); j++) window.add(j);
     const size = render(doc, window, lead).length;
     const growth = size - (sizes.get(hit.doc) ?? 0);
-    if (shown && total + growth > MAX_OUTPUT_CHARS) break;
+    if (shown && total + growth > CHARACTER_LIMIT) break;
     kept.set(hit.doc, window);
     sizes.set(hit.doc, size);
     total += growth;

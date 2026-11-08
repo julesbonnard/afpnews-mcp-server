@@ -142,7 +142,7 @@ Comportement:
 
 ### Paramètre `passages` (`afp_search_articles`, `afp_search_media`)
 
-- Remplace les extraits par les seuls passages correspondant à `terms`/`pattern` (paragraphes des textes, plans et citations sonores des vidéos), classés tous résultats confondus dans un budget de sortie de 24 000 caractères ; `quotesOnly`, `lead`, `context` en options.
+- Remplace les extraits par les seuls passages correspondant à `terms`/`pattern` (paragraphes des textes, plans et citations sonores des vidéos), classés tous résultats confondus, les meilleurs d'abord dans la limite de sortie commune (`CHARACTER_LIMIT`) ; `quotesOnly`, `lead`, `context` en options.
 - Avec `facets.uno` (liste d'UNO), la recherche porte sur ces documents : les filtres par défaut sautent et `size` vaut le nombre d'UNO.
 
 ### Paramètre `fullText` (tool `afp_search_articles`)

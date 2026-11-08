@@ -43,7 +43,7 @@ const reservedFacetKeys = new Set([
 const inputSchema = z.object({
   preset: searchPresetEnum.optional().describe('Predefined AFP filter set.'),
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
-  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre.'),
+  fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre. lead: the first paragraph, which gives the essentials of a wire.'),
   fullText: z.boolean().optional().describe('Return the full article body (markdown only). Default false, true with a preset.'),
   query: z.string().optional().describe('Search keywords (AFP query syntax: AND, OR, quotes, title:).'),
   size: z.number().optional().describe('Number of results to return (default 10, or the number of facets.uno; max 1000)'),

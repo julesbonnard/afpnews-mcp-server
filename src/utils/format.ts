@@ -26,6 +26,7 @@ const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
   revision: d => d.revision,
   created: d => d.created.toISOString(),
   wordCount: d => d.wordCount,
+  lead: d => d.paragraphs[0]?.text,
 };
 
 // Champs publics dont le nom de requête API brut diffère du DocField (ou nécessite plusieurs
@@ -33,6 +34,7 @@ const FIELD_ACCESSORS: Record<DocField, (doc: AfpDocument) => unknown> = {
 const RAW_FIELD_OVERRIDES: Partial<Record<DocField, readonly string[]>> = {
   event: ['afpentity'],
   country: ['country', 'countryname'],
+  lead: ['news'],
 };
 
 /**
