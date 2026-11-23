@@ -209,6 +209,18 @@ function truncateContentItemsWithPrefix(
   return { content: result, shown, truncated: false, remaining: 0 };
 }
 
+type EntityDoc = Pick<AfpDocument, 'afpKeywords' | 'persons' | 'organisations'>;
+
+/** Entités du thésaurus, chacune avec le token de requête qui la cherche : `WIG (afpkeyword:13088)`. */
+export function entityLabels(doc: EntityDoc): { keywords: string[]; people: string[]; organisations: string[] } {
+  const label = (field: string) => (e: { id: string; name: string }) => `${e.name} (${field}:${e.id})`;
+  return {
+    keywords: doc.afpKeywords.map(label('afpkeyword')),
+    people: doc.persons.map(label('person')),
+    organisations: doc.organisations.map(label('organisation')),
+  };
+}
+
 export function formatDocument(doc: AfpDocument, fullText = false): TextContent {
   const meta: string[] = [`UNO: ${doc.uno}`];
   if (doc.lang) meta.push(`Lang: ${doc.lang}`);
@@ -243,6 +255,9 @@ export function formatFullArticle(doc: AfpDocument): TextContent {
     ['Event', doc.events.map(e => e.name)],
   );
   if (extras) lines.push(extras);
+  const { people, organisations } = entityLabels(doc);
+  const entities = row(['People', people], ['Organisations', organisations]);
+  if (entities) lines.push(entities);
 
   const flags = row(
     ['Status', doc.status === USABLE_STATUS ? undefined : doc.status],

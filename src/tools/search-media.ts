@@ -18,6 +18,7 @@ import {
   REGION_FACET_NOTE,
   UNO_FACET_NOTE,
   AFP_PROVIDERS,
+  QUERY_DESCRIPTION,
   requestedUnos,
 } from './shared.js';
 import { formatPassages, passagesSchema, PASSAGES_NOTE } from '../utils/passages.js';
@@ -52,12 +53,13 @@ const reservedMediaFacetKeys = new Set(['class', 'format', 'query', 'size', 'sor
 const MEDIA_API_FIELDS = toApiFields([
   'title', 'caption', 'creditLine', 'creator',
   'country', 'city', 'aspectRatios', 'advisory', 'medias',
+  'afpKeywords', 'persons', 'organisations',
 ]);
 const PASSAGES_API_FIELDS = toApiFields(['caption', 'shots', 'paragraphs', 'genre']);
 
 const inputSchema = z.object({
   class: mediaClassEnum.optional().describe("Media class. Omit to search all media types."),
-  query: z.string().optional().describe('Search keywords (AFP query syntax: AND, OR, quotes, title:).'),
+  query: z.string().optional().describe(QUERY_DESCRIPTION),
   size: z.number().optional().describe('Number of results (default 10, or the number of facets.uno; max 1000)'),
   offset: z.number().optional().describe('Pagination offset'),
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
@@ -88,7 +90,7 @@ export const afpSearchMediaTool = {
   title: 'Search AFP Media (Photos, Videos, Graphics)',
   description: `Search AFP media: photos (picture), videos, infographics (graphic) and motion design (videography). For news text, use afp_search_articles.
 
-Photo captions are always in English: do not filter photos by lang. Videos have no language constraint; graphics and videography exist in several languages. Default provider: AFP (including its Arabic service). Results are sorted by date, never by relevance; paginate with offset.
+Photo captions are always in English: do not filter photos by lang. Each result lists its thesaurus entities (keywords, people, organisations) with the token that searches them, e.g. "WIG (afpkeyword:13088)": a keyword finds pictures of a concept even when captions do not name it. Videos have no language constraint; graphics and videography exist in several languages. Default provider: AFP (including its Arabic service). Results are sorted by date, never by relevance; paginate with offset.
 
 Renditions: quicklook ~245px, thumbnail ~320px, preview ~1200px, highdef ~3400px.`,
   inputSchema,
