@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ApiCore, AfpDocument } from 'afpnews-api';
-import { textContent, toolError } from '../utils/format.js';
+import { textContent, toolError, entityLabels } from '../utils/format.js';
 import { extractRenditions } from '../utils/format-media.js';
 import type { MediaRendition, MediaRenditions } from '../utils/types.js';
 import { inferMimeType, selectRenditionForEmbed, isSvgRendition, embedRendition } from '../utils/embed-media.js';
@@ -26,6 +26,11 @@ function formatFullMediaText(doc: AfpDocument, renditions: MediaRenditions, note
   if (country || doc.city) lines.push(`**Location:** ${[doc.city, country].filter(Boolean).join(', ')}`);
   lines.push(`**Urgency:** ${doc.urgency}`);
   if (doc.aspectRatios?.length) lines.push(`**Aspect:** ${doc.aspectRatios.join(', ')}`);
+
+  const { keywords, people, organisations } = entityLabels(doc);
+  if (keywords.length) lines.push(`**Keywords:** ${keywords.join(', ')}`);
+  if (people.length) lines.push(`**People:** ${people.join(', ')}`);
+  if (organisations.length) lines.push(`**Organisations:** ${organisations.join(', ')}`);
 
   if (doc.caption) lines.push(`\n${doc.caption}`);
   if (doc.advisory) lines.push(`\n> ${doc.advisory}`);

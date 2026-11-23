@@ -33,6 +33,10 @@ export interface AFPMediaDocument {
   class?: string;
   aspectRatios?: string[];
   advisory?: string;
+  /** Entités du thésaurus avec leur jeton de requête : `<nom> (afpkeyword:<id>)` */
+  keywords?: string[];
+  people?: string[];
+  organisations?: string[];
   renditions: MediaRenditions;
 }
 

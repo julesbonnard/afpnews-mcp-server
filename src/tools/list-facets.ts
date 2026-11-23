@@ -13,7 +13,7 @@ import {
 
 const inputSchema = z.object({
   preset: listPresetEnum.optional().describe('trending-topics: slug counts over the last 24h.'),
-  facet: z.string().optional().describe("Facet to list: slug, genre, country, event, afpentity.person.keyword, afpentity.organisation.keyword… Required without preset."),
+  facet: z.string().optional().describe("Facet to list: slug, genre, country, event, afpentity.person.keyword, afpentity.organisation.keyword, afpentity.keyword.keyword (photo keywords)… Required without preset."),
   lang: langEnum.optional().describe("Language filter"),
   query: z.string().optional().describe("Keywords restricting the counted articles."),
   dateFrom: z.string().optional().describe("Window start ('now-1d' or ISO date)."),
@@ -53,7 +53,7 @@ export const afpListFacetsTool = {
   title: 'List AFP Facet Values',
   description: `List facet values with their article counts: discover topics (slug), genres, countries, events, people (afpentity.person.keyword) or organisations (afpentity.organisation.keyword) cited; get trending topics; compare activity across two time windows.
 
-Defaults: class=text, provider=AFP (including its Arabic service); pass facets.class to count media too. Event values come with their readable label: the name is the id to filter on (afpevent:ID). Without lang, labels may be in another language than the answer: translate them.`,
+Defaults: class=text, provider=AFP (including its Arabic service); pass facets.class to count media too. Person, organisation and keyword values are labels only, not searchable ids: to filter on one, read its id from a search result (person:<id>, organisation:<id>, afpkeyword:<id>). Event values come with their readable label: the name is the id to filter on (afpevent:ID). Without lang, labels may be in another language than the answer: translate them.`,
   inputSchema,
   handler: async (apicore: Pick<ApiCore, 'list'>, { preset, facet, lang, query, dateFrom, dateTo, size, format = 'markdown', facets }: ListFacetsInput) => {
     try {
