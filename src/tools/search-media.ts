@@ -90,7 +90,7 @@ export const afpSearchMediaTool = {
   title: 'Search AFP Media (Photos, Videos, Graphics)',
   description: `Search AFP media: photos (picture), videos, infographics (graphic) and motion design (videography). For news text, use afp_search_articles.
 
-Photo captions are always in English: do not filter photos by lang. Each result lists its thesaurus entities (keywords, people, organisations) with the token that searches them, e.g. "WIG (afpkeyword:13088)": a keyword finds pictures of a concept even when captions do not name it. Videos have no language constraint; graphics and videography exist in several languages. Default provider: AFP (including its Arabic service). Results are sorted by date, never by relevance; paginate with offset.
+Photo captions are always in English: do not filter photos by lang. Each result lists its thesaurus entities (keywords, people, organisations) with the token that searches them, as "<name> (afpkeyword:<id>)": a keyword finds pictures of a concept even when captions do not name it. Videos have no language constraint; graphics and videography exist in several languages. Default provider: AFP (including its Arabic service). Results are sorted by date, never by relevance; paginate with offset.
 
 Renditions: quicklook ~245px, thumbnail ~320px, preview ~1200px, highdef ~3400px.`,
   inputSchema,

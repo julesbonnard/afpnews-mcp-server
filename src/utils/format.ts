@@ -211,7 +211,7 @@ function truncateContentItemsWithPrefix(
 
 type EntityDoc = Pick<AfpDocument, 'afpKeywords' | 'persons' | 'organisations'>;
 
-/** Entités du thésaurus, chacune avec le token de requête qui la cherche : `WIG (afpkeyword:13088)`. */
+/** Entités du thésaurus, chacune avec le jeton de requête qui la cherche : `<nom> (afpkeyword:<id>)`. */
 export function entityLabels(doc: EntityDoc): { keywords: string[]; people: string[]; organisations: string[] } {
   const label = (field: string) => (e: { id: string; name: string }) => `${e.name} (${field}:${e.id})`;
   return {

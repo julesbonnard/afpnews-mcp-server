@@ -15,7 +15,7 @@ export const UNO_FORMAT_NOTE = 'A UNO (newsml.afp.com.<timestamp>.doc-<afpshorti
 export const PARAGRAPH_MARKER_NOTE = 'Paragraphs are prefixed with a technical `[¶n]` marker (1-based): never reproduce it.';
 
 // Champs courts d'afpnews-api : les entités du thésaurus ne se cherchent que par id, jamais par libellé.
-export const ENTITY_QUERY_NOTE = 'Thesaurus entities are searched by id, never by label: person:<id>, organisation:<id>, afpkeyword:<id> (photo keyword, e.g. afpkeyword:13088 = WIG), event:<id>. Read ids from the entities of a result.';
+export const ENTITY_QUERY_NOTE = 'Thesaurus entities are searched by id, never by label: person:<id>, organisation:<id>, afpkeyword:<id> (photo keyword), event:<id>. Read ids from the entities of a result.';
 
 export const QUERY_DESCRIPTION = `Search keywords (AFP query syntax: AND, OR, quotes, title:). ${ENTITY_QUERY_NOTE}`;
 

@@ -33,7 +33,7 @@ export interface AFPMediaDocument {
   class?: string;
   aspectRatios?: string[];
   advisory?: string;
-  /** Entités du thésaurus avec leur token de requête, ex. `WIG (afpkeyword:13088)` */
+  /** Entités du thésaurus avec leur jeton de requête : `<nom> (afpkeyword:<id>)` */
   keywords?: string[];
   people?: string[];
   organisations?: string[];
