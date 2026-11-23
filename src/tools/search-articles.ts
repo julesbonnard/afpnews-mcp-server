@@ -23,6 +23,7 @@ import {
   REGION_FACET_NOTE,
   UNO_FACET_NOTE,
   AFP_PROVIDERS,
+  QUERY_DESCRIPTION,
   requestedUnos,
 } from './shared.js';
 import { formatPassages, passagesSchema, PASSAGES_NOTE } from '../utils/passages.js';
@@ -45,7 +46,7 @@ const inputSchema = z.object({
   format: outputFormatEnum.optional().describe('Output format: markdown (default, with article body), json (structured, no body), csv (tabular, no body).'),
   fields: docFieldEnum.array().optional().describe('Fields to include in json/csv output. Default: uno, headline, lang, genre. lead: the first paragraph, which gives the essentials of a wire.'),
   fullText: z.boolean().optional().describe('Return the full article body (markdown only). Default false, true with a preset.'),
-  query: z.string().optional().describe('Search keywords (AFP query syntax: AND, OR, quotes, title:).'),
+  query: z.string().optional().describe(QUERY_DESCRIPTION),
   size: z.number().optional().describe('Number of results to return (default 10, or the number of facets.uno; max 1000)'),
   sortOrder: z.enum(['asc', 'desc']).optional().describe("Sort order by date (default 'desc')"),
   offset: z.number().optional().describe('Offset for pagination (number of results to skip)'),

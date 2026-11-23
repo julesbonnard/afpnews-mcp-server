@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, formatMediaDocumentsAsCsv, MEDIA_RENDITION_ROLE_MAP } from '../utils/format-media.js';
+import { parseDocument } from 'afpnews-api';
+import { extractRenditions, formatMediaDocument, formatMediaDocumentsAsJson, formatMediaDocumentsAsCsv, normalizeMediaDocument, MEDIA_RENDITION_ROLE_MAP } from '../utils/format-media.js';
 
 // Fixture reprenant la structure réelle AFP — extractRenditions prend directement le tableau de
 // renditions d'un AfpMedia (déjà bucketisé par media, voir doc.medias[0].renditions).
@@ -219,5 +220,30 @@ describe('formatMediaDocumentsAsJson', () => {
     expect(r.truncated).toBe(true);
     const parsed = JSON.parse(r.content.text);
     expect(parsed.shown).toBeLessThan(500);
+  });
+});
+
+describe('thesaurus entities', () => {
+  const doc = normalizeMediaDocument(parseDocument({
+    class: 'picture', uno: 'newsml.photo', created: '2026-07-10T02:22:39Z', published: '2026-07-10T02:22:39Z',
+    lang: 'en', revision: 1, provider: 'AFP', status: 'Usable', urgency: 5,
+    afpentity: {
+      keyword: [{ qcode: 'afpkeyword:13088', keyword: 'WIG' }],
+      person: [{ qcode: 'afpperson:1809319', keyword: 'Simon Harmer' }],
+      organisation: [{ qcode: 'afporganization:4418', keyword: 'UN' }],
+    },
+  }));
+
+  it('carries each entity with the query token that searches it', () => {
+    expect(doc.keywords).toEqual(['WIG (afpkeyword:13088)']);
+    expect(doc.people).toEqual(['Simon Harmer (person:1809319)']);
+    expect(doc.organisations).toEqual(['UN (organisation:4418)']);
+  });
+
+  it('lists entities in markdown and in the csv entities column', () => {
+    expect(formatMediaDocument(doc).text).toContain('**Keywords:** WIG (afpkeyword:13088)');
+    expect(formatMediaDocumentsAsCsv([doc]).content.text).toContain(
+      'WIG (afpkeyword:13088); Simon Harmer (person:1809319); UN (organisation:4418)'
+    );
   });
 });

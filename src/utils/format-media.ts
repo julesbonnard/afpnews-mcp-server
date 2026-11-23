@@ -1,6 +1,6 @@
 import type { AfpDocument, AfpMediaRendition } from 'afpnews-api';
 import type { AFPMediaDocument, MediaRenditions, MediaRendition, TextContent } from './types.js';
-import { textContent, truncateToLimit, truncateContentItems, truncationHint, escapeCsvValue } from './format.js';
+import { textContent, truncateToLimit, truncateContentItems, truncationHint, escapeCsvValue, entityLabels } from './format.js';
 
 // Mapping role AFP → clé normalisée (utilise m.role, pas m.rendition)
 // Preview est prioritaire sur Preview_B/Preview_W (premier match gagne)
@@ -66,6 +66,11 @@ export function formatMediaDocument(doc: Partial<AFPMediaDocument> & { uno: stri
     lines.push('');
   }
 
+  for (const [label, values] of [['Keywords', doc.keywords], ['People', doc.people], ['Organisations', doc.organisations]] as const) {
+    if (values?.length) lines.push(`**${label}:** ${values.join(', ')}`);
+  }
+  if (doc.keywords?.length || doc.people?.length || doc.organisations?.length) lines.push('');
+
   if (doc.advisory) {
     lines.push(`> ${doc.advisory}`);
   }
@@ -88,6 +93,7 @@ export function normalizeMediaDocument(doc: AfpDocument): AFPMediaDocument {
     class: doc.class,
     aspectRatios: doc.aspectRatios,
     advisory: doc.advisory,
+    ...entityLabels(doc),
     renditions: extractRenditions(doc.medias[0]?.renditions),
   };
 }
@@ -110,7 +116,7 @@ export function formatMediaDocumentsAsJson(
 }
 
 export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: TextContent; shown: number; truncated: boolean; remaining: number } {
-  const header = 'uno,title,caption,creditLine,published,class,thumbnail_href';
+  const header = 'uno,title,caption,creditLine,published,class,thumbnail_href,entities';
   const rows = docs.map((d) => [
     escapeCsvValue(d.uno),
     escapeCsvValue(d.title),
@@ -119,6 +125,7 @@ export function formatMediaDocumentsAsCsv(docs: AFPMediaDocument[]): { content: 
     escapeCsvValue(d.published),
     escapeCsvValue(d.class),
     escapeCsvValue(d.renditions.thumbnail?.href),
+    escapeCsvValue([...(d.keywords ?? []), ...(d.people ?? []), ...(d.organisations ?? [])].join('; ')),
   ].join(','));
 
   const { text, count, truncated, remaining } = truncateToLimit(
